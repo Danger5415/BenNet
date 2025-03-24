@@ -15,6 +15,7 @@ import {
   Moon,
   Coffee,
   Clock,
+  BarChart
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -35,6 +36,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Teaching', href: '/teaching', icon: Book },
     { name: 'Timetable', href: '/timetable', icon: Clock },
+    { name: 'Attendance', href: '/attendance', icon: BarChart },
   ];
 
   return (
