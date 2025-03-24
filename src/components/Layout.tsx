@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   Coffee,
+  Clock,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -33,6 +34,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Cafeteria Menu', href: '/cafeteria', icon: Coffee },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Teaching', href: '/teaching', icon: Book },
+    { name: 'Timetable', href: '/timetable', icon: Clock },
   ];
 
   return (

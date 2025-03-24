@@ -10,6 +10,7 @@ import LostFound from './pages/LostFound';
 import Events from './pages/Events';
 import Teaching from './pages/Teaching';
 import CafeteriaMenu from './pages/CafeteriaMenu';
+import Timetable from './pages/Timetable';
 import Layout from './components/Layout';
 
 function App() {
@@ -107,6 +108,18 @@ function App() {
               user ? (
                 <Layout>
                   <CafeteriaMenu />
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/timetable"
+            element={
+              user ? (
+                <Layout>
+                  <Timetable />
                 </Layout>
               ) : (
                 <Navigate to="/login" />
