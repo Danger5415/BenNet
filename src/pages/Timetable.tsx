@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { QrCode, Clock, Calendar, CheckCircle } from 'lucide-react';
+import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -62,14 +62,21 @@ export default function Timetable() {
   const [showQR, setShowQR] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [showClassForm, setShowClassForm] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+
+  const [newClass, setNewClass] = useState<Omit<Class, 'id'>>({
+    subject: '',
+    day: 'Monday',
+    startTime: '09:00',
+    endTime: '10:00',
+    room: '',
+    teacher: ''
+  });
 
   useEffect(() => {
     if (showQR && selectedClass?.qrCode) {
-      QRCode.toDataURL(selectedClass.qrCode)
-        .then(url => {
-          setQrCodeUrl(url);
-        })
-        .catch(console.error);
+      generateQRCodeUrl(selectedClass.qrCode);
     }
   }, [showQR, selectedClass]);
 
@@ -98,6 +105,15 @@ export default function Timetable() {
     };
   }, [showScanner]);
 
+  const generateQRCodeUrl = async (data: string) => {
+    try {
+      const url = await QRCode.toDataURL(data);
+      setQrCodeUrl(url);
+    } catch (err) {
+      console.error('Error generating QR code:', err);
+    }
+  };
+
   const generateQRCode = (classId: string) => {
     const timestamp = new Date().getTime();
     const uniqueCode = `${classId}-${timestamp}-${Math.random().toString(36).substring(7)}`;
@@ -111,7 +127,8 @@ export default function Timetable() {
 
   const handleGenerateQR = (classItem: Class) => {
     setSelectedClass(classItem);
-    generateQRCode(classItem.id);
+    const qrCode = generateQRCode(classItem.id);
+    generateQRCodeUrl(qrCode);
     setShowQR(true);
   };
 
@@ -151,6 +168,58 @@ export default function Timetable() {
     setShowScanner(false);
   };
 
+  const handleAddClass = () => {
+    setEditingClass(null);
+    setNewClass({
+      subject: '',
+      day: 'Monday',
+      startTime: '09:00',
+      endTime: '10:00',
+      room: '',
+      teacher: ''
+    });
+    setShowClassForm(true);
+  };
+
+  const handleEditClass = (classItem: Class) => {
+    setEditingClass(classItem);
+    setNewClass({
+      subject: classItem.subject,
+      day: classItem.day,
+      startTime: classItem.startTime,
+      endTime: classItem.endTime,
+      room: classItem.room,
+      teacher: classItem.teacher
+    });
+    setShowClassForm(true);
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    if (confirm('Are you sure you want to delete this class?')) {
+      setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+    }
+  };
+
+  const handleSubmitClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingClass) {
+      setClasses(prevClasses =>
+        prevClasses.map(cls =>
+          cls.id === editingClass.id
+            ? { ...newClass, id: editingClass.id }
+            : cls
+        )
+      );
+    } else {
+      const newClassItem = {
+        ...newClass,
+        id: Math.random().toString(),
+      };
+      setClasses(prev => [...prev, newClassItem]);
+    }
+    setShowClassForm(false);
+  };
+
   const getAttendanceForClass = (classId: string) => {
     return attendanceRecords.find(
       record =>
@@ -164,6 +233,15 @@ export default function Timetable() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold dark:text-white">Timetable</h1>
+        {user?.role === 'admin' && (
+          <button
+            onClick={handleAddClass}
+            className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Class
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-x-auto">
@@ -212,23 +290,41 @@ export default function Timetable() {
                           <div className="text-sm text-blue-500 dark:text-blue-300">
                             {classForSlot.teacher}
                           </div>
-                          {user?.role === 'admin' ? (
-                            <button
-                              onClick={() => handleGenerateQR(classForSlot)}
-                              className="mt-2 flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                            >
-                              <QrCode className="h-4 w-4 mr-1" />
-                              Generate QR
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleScanQR(classForSlot)}
-                              className="mt-2 flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                            >
-                              <QrCode className="h-4 w-4 mr-1" />
-                              Scan QR
-                            </button>
-                          )}
+                          <div className="flex items-center mt-2 space-x-2">
+                            {user?.role === 'admin' ? (
+                              <>
+                                <button
+                                  onClick={() => handleGenerateQR(classForSlot)}
+                                  className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                                >
+                                  <QrCode className="h-4 w-4 mr-1" />
+                                  Generate QR
+                                </button>
+                                <button
+                                  onClick={() => handleEditClass(classForSlot)}
+                                  className="flex items-center text-sm text-green-600 dark:text-green-400 hover:text-green-800"
+                                >
+                                  <Edit2 className="h-4 w-4 mr-1" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClass(classForSlot.id)}
+                                  className="flex items-center text-sm text-red-600 dark:text-red-400 hover:text-red-800"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleScanQR(classForSlot)}
+                                className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                              >
+                                <QrCode className="h-4 w-4 mr-1" />
+                                Scan QR
+                              </button>
+                            )}
+                          </div>
                           {getAttendanceForClass(classForSlot.id) && (
                             <div className="mt-2 flex items-center text-sm text-green-600">
                               <CheckCircle className="h-4 w-4 mr-1" />
@@ -248,11 +344,19 @@ export default function Timetable() {
 
       {/* QR Code Modal */}
       {showQR && selectedClass && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Attendance QR Code for {selectedClass.subject}
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Attendance QR Code for {selectedClass.subject}
+              </h3>
+              <button
+                onClick={() => setShowQR(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             <div className="flex justify-center mb-4">
               {qrCodeUrl && (
                 <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
@@ -273,11 +377,19 @@ export default function Timetable() {
 
       {/* QR Scanner Modal */}
       {showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Scan Attendance QR Code
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Scan Attendance QR Code
+              </h3>
+              <button
+                onClick={() => setShowScanner(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             <div id="qr-reader" className="w-full"></div>
             <button
               onClick={() => setShowScanner(false)}
@@ -285,6 +397,120 @@ export default function Timetable() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Class Form Modal */}
+      {showClassForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {editingClass ? 'Edit Class' : 'Add New Class'}
+              </h3>
+              <button
+                onClick={() => setShowClassForm(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitClass} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={newClass.subject}
+                  onChange={(e) => setNewClass({ ...newClass, subject: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Day
+                  </label>
+                  <select
+                    value={newClass.day}
+                    onChange={(e) => setNewClass({ ...newClass, day: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  >
+                    {days.map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Room
+                  </label>
+                  <input
+                    type="text"
+                    value={newClass.room}
+                    onChange={(e) => setNewClass({ ...newClass, room: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    value={newClass.startTime}
+                    onChange={(e) => setNewClass({ ...newClass, startTime: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    value={newClass.endTime}
+                    onChange={(e) => setNewClass({ ...newClass, endTime: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Teacher
+                </label>
+                <input
+                  type="text"
+                  value={newClass.teacher}
+                  onChange={(e) => setNewClass({ ...newClass, teacher: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowClassForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                >
+                  {editingClass ? 'Update' : 'Add'} Class
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
