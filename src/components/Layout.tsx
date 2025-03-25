@@ -15,7 +15,8 @@ import {
   Moon,
   Coffee,
   Clock,
-  BarChart
+  BarChart,
+  GraduationCap
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -38,8 +39,10 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Timetable', href: '/timetable', icon: Clock },
   ];
 
-  // Add Attendance tab only for students
-  const navigation = user?.role === 'student' 
+  // Add Students tab for admin, and Attendance for students
+  const navigation = user?.role === 'admin' 
+    ? [...baseNavigation, { name: 'Students', href: '/students', icon: GraduationCap }]
+    : user?.role === 'student'
     ? [...baseNavigation, { name: 'Attendance', href: '/attendance', icon: BarChart }]
     : baseNavigation;
 

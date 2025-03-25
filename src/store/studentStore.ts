@@ -8,7 +8,7 @@ export interface Student {
   roll_number: string;
   department: string;
   year: number;
-  created_at: string;
+  created_at?: string;
 }
 
 interface StudentState {
@@ -39,6 +39,7 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       set({ students: data || [] });
     } catch (error) {
       set({ error: (error as Error).message });
+      console.error('Error fetching students:', error);
     } finally {
       set({ loading: false });
     }
@@ -55,6 +56,7 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       await get().fetchStudents();
     } catch (error) {
       set({ error: (error as Error).message });
+      console.error('Error adding student:', error);
     } finally {
       set({ loading: false });
     }
@@ -72,6 +74,7 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       await get().fetchStudents();
     } catch (error) {
       set({ error: (error as Error).message });
+      console.error('Error updating student:', error);
     } finally {
       set({ loading: false });
     }
@@ -89,6 +92,7 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       await get().fetchStudents();
     } catch (error) {
       set({ error: (error as Error).message });
+      console.error('Error deleting student:', error);
     } finally {
       set({ loading: false });
     }
@@ -105,6 +109,7 @@ export const useStudentStore = create<StudentState>((set, get) => ({
       await get().fetchStudents();
     } catch (error) {
       set({ error: (error as Error).message });
+      console.error('Error importing students:', error);
     } finally {
       set({ loading: false });
     }

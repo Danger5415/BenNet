@@ -12,6 +12,7 @@ import Teaching from './pages/Teaching';
 import CafeteriaMenu from './pages/CafeteriaMenu';
 import Timetable from './pages/Timetable';
 import Attendance from './pages/Attendance';
+import Students from './pages/Students';
 import Layout from './components/Layout';
 
 function App() {
@@ -133,6 +134,18 @@ function App() {
               user?.role === 'student' ? (
                 <Layout>
                   <Attendance />
+                </Layout>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/students"
+            element={
+              user?.role === 'admin' ? (
+                <Layout>
+                  <Students />
                 </Layout>
               ) : (
                 <Navigate to="/" />
