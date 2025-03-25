@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2 } from 'lucide-react';
+import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -19,8 +19,16 @@ interface Attendance {
   id: string;
   classId: string;
   studentId: string;
+  studentEmail: string;
   date: string;
   status: 'present' | 'absent';
+  markedBy?: string;
+  timestamp: string;
+}
+
+interface Student {
+  id: string;
+  email: string;
 }
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -32,6 +40,13 @@ const timeSlots = [
   '14:00-15:00',
   '15:00-16:00',
   '16:00-17:00'
+];
+
+// Mock students data
+const mockStudents: Student[] = [
+  { id: '2', email: 'student@campus.edu' },
+  { id: '3', email: 'student2@campus.edu' },
+  { id: '4', email: 'student3@campus.edu' },
 ];
 
 export default function Timetable() {
@@ -61,6 +76,7 @@ export default function Timetable() {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showAttendance, setShowAttendance] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [showClassForm, setShowClassForm] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
@@ -132,13 +148,18 @@ export default function Timetable() {
     setShowQR(true);
   };
 
+  const handleViewAttendance = (classItem: Class) => {
+    setSelectedClass(classItem);
+    setShowAttendance(true);
+  };
+
   const handleScanQR = (classItem: Class) => {
     setSelectedClass(classItem);
     setShowScanner(true);
   };
 
   const handleQRScanned = (data: string) => {
-    if (!data || !selectedClass) return;
+    if (!data || !selectedClass || !user) return;
 
     const [classId, timestamp] = data.split('-');
     const scanTime = new Date().getTime();
@@ -154,18 +175,67 @@ export default function Timetable() {
       const newAttendance: Attendance = {
         id: Math.random().toString(),
         classId: selectedClass.id,
-        studentId: user?.id || '',
+        studentId: user.id,
+        studentEmail: user.email,
         date: new Date().toISOString().split('T')[0],
-        status: 'present'
+        status: 'present',
+        timestamp: new Date().toISOString(),
       };
 
-      setAttendanceRecords(prev => [...prev, newAttendance]);
-      alert('Attendance marked successfully!');
+      setAttendanceRecords(prev => {
+        // Check if attendance already exists for this student and class today
+        const existingRecord = prev.find(
+          record => 
+            record.classId === newAttendance.classId && 
+            record.studentId === newAttendance.studentId &&
+            record.date === newAttendance.date
+        );
+
+        if (existingRecord) {
+          alert('Attendance already marked for today');
+          return prev;
+        }
+
+        alert('Attendance marked successfully!');
+        return [...prev, newAttendance];
+      });
     } else {
       alert('Invalid QR code for this class');
     }
 
     setShowScanner(false);
+  };
+
+  const handleManualAttendance = (studentId: string, studentEmail: string, present: boolean) => {
+    if (!selectedClass) return;
+
+    setAttendanceRecords(prev => {
+      const existingRecord = prev.find(
+        record => 
+          record.classId === selectedClass.id && 
+          record.studentId === studentId &&
+          record.date === new Date().toISOString().split('T')[0]
+      );
+
+      if (existingRecord) {
+        return prev.map(record => 
+          record === existingRecord
+            ? { ...record, status: present ? 'present' : 'absent', markedBy: user?.email }
+            : record
+        );
+      }
+
+      return [...prev, {
+        id: Math.random().toString(),
+        classId: selectedClass.id,
+        studentId,
+        studentEmail,
+        date: new Date().toISOString().split('T')[0],
+        status: present ? 'present' : 'absent',
+        markedBy: user?.email,
+        timestamp: new Date().toISOString(),
+      }];
+    });
   };
 
   const handleAddClass = () => {
@@ -197,6 +267,7 @@ export default function Timetable() {
   const handleDeleteClass = (classId: string) => {
     if (confirm('Are you sure you want to delete this class?')) {
       setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+      setAttendanceRecords(prev => prev.filter(record => record.classId !== classId));
     }
   };
 
@@ -227,6 +298,19 @@ export default function Timetable() {
         record.studentId === user?.id &&
         record.date === new Date().toISOString().split('T')[0]
     );
+  };
+
+  const getAttendanceStats = (classId: string) => {
+    const todayRecords = attendanceRecords.filter(
+      record => 
+        record.classId === classId &&
+        record.date === new Date().toISOString().split('T')[0]
+    );
+
+    return {
+      present: todayRecords.filter(record => record.status === 'present').length,
+      total: mockStudents.length,
+    };
   };
 
   return (
@@ -301,8 +385,15 @@ export default function Timetable() {
                                   Generate QR
                                 </button>
                                 <button
-                                  onClick={() => handleEditClass(classForSlot)}
+                                  onClick={() => handleViewAttendance(classForSlot)}
                                   className="flex items-center text-sm text-green-600 dark:text-green-400 hover:text-green-800"
+                                >
+                                  <Users className="h-4 w-4 mr-1" />
+                                  View Attendance
+                                </button>
+                                <button
+                                  onClick={() => handleEditClass(classForSlot)}
+                                  className="flex items-center text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-800"
                                 >
                                   <Edit2 className="h-4 w-4 mr-1" />
                                   Edit
@@ -325,7 +416,15 @@ export default function Timetable() {
                               </button>
                             )}
                           </div>
-                          {getAttendanceForClass(classForSlot.id) && (
+                          {user?.role === 'admin' && (
+                            <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                              {(() => {
+                                const stats = getAttendanceStats(classForSlot.id);
+                                return `${stats.present}/${stats.total} present`;
+                              })()}
+                            </div>
+                          )}
+                          {user?.role === 'student' && getAttendanceForClass(classForSlot.id) && (
                             <div className="mt-2 flex items-center text-sm text-green-600">
                               <CheckCircle className="h-4 w-4 mr-1" />
                               Present
@@ -397,6 +496,103 @@ export default function Timetable() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance View Modal */}
+      {showAttendance && selectedClass && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Attendance for {selectedClass.subject}
+              </h3>
+              <button
+                onClick={() => setShowAttendance(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Student
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Marked By
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {mockStudents.map(student => {
+                      const attendance = attendanceRecords.find(
+                        record => 
+                          record.classId === selectedClass.id && 
+                          record.studentId === student.id &&
+                          record.date === new Date().toISOString().split('T')[0]
+                      );
+
+                      return (
+                        <tr key={student.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {student.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              attendance?.status === 'present'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : attendance?.status === 'absent'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                            }`}>
+                              {attendance?.status || 'Not Marked'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {attendance?.markedBy || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleManualAttendance(student.id, student.email, true)}
+                                className="text-green-600 hover:text-green-900 dark:hover:text-green-400"
+                              >
+                                <Check className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handleManualAttendance(student.id, student.email, false)}
+                                className="text-red-600 hover:text-red-900 dark:hover:text-red-400"
+                              >
+                                <X className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowAttendance(false)}
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
