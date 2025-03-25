@@ -27,7 +27,7 @@ export default function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
 
-  const navigation = [
+  const baseNavigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Campus Map', href: '/map', icon: MapPin },
     { name: 'Issues', href: '/issues', icon: AlertCircle },
@@ -36,8 +36,12 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Teaching', href: '/teaching', icon: Book },
     { name: 'Timetable', href: '/timetable', icon: Clock },
-    { name: 'Attendance', href: '/attendance', icon: BarChart },
   ];
+
+  // Add Attendance tab only for students
+  const navigation = user?.role === 'student' 
+    ? [...baseNavigation, { name: 'Attendance', href: '/attendance', icon: BarChart }]
+    : baseNavigation;
 
   return (
     <div className={`min-h-screen ${isDark ? 'dark bg-gray-900' : 'bg-gray-100'}`}>

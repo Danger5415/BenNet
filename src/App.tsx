@@ -130,12 +130,12 @@ function App() {
           <Route
             path="/attendance"
             element={
-              user ? (
+              user?.role === 'student' ? (
                 <Layout>
                   <Attendance />
                 </Layout>
               ) : (
-                <Navigate to="/login" />
+                <Navigate to="/" />
               )
             }
           />
