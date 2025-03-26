@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, MessageCircle, ArrowBigUp, ArrowBigDown, Send, Share2, Flag, MoreHorizontal } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import ImageUpload from '../components/ImageUpload';
 
 interface Comment {
   id: number;
@@ -24,6 +25,7 @@ interface Issue {
   createdAt: string;
   author: string;
   isAdmin: boolean;
+  imageUrl?: string;
 }
 
 export default function Issues() {
@@ -50,34 +52,16 @@ export default function Issues() {
       ],
       createdAt: '2024-02-20',
       author: 'student@campus.edu',
-      isAdmin: false
-    },
-    {
-      id: 2,
-      title: 'WiFi Issues in Building C',
-      description: 'Intermittent WiFi connectivity in lecture halls',
-      status: 'in_progress',
-      upvotes: 8,
-      downvotes: 2,
-      userVote: null,
-      comments: [
-        {
-          id: 2,
-          content: 'IT team is working on resolving this issue.',
-          author: 'admin@campus.edu',
-          isAdmin: true,
-          createdAt: '2024-02-19 15:45',
-          votes: 4,
-          userVote: null
-        }
-      ],
-      createdAt: '2024-02-19',
-      author: 'student@campus.edu',
-      isAdmin: false
+      isAdmin: false,
+      imageUrl: 'https://images.unsplash.com/photo-1581094288338-2314dddb7ece?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
     }
   ]);
 
-  const [newIssue, setNewIssue] = useState({ title: '', description: '' });
+  const [newIssue, setNewIssue] = useState({ 
+    title: '', 
+    description: '',
+    imageUrl: '' 
+  });
   const [commentInputs, setCommentInputs] = useState<{ [key: number]: string }>({});
   const [showComments, setShowComments] = useState<{ [key: number]: boolean }>({});
 
@@ -85,7 +69,9 @@ export default function Issues() {
     e.preventDefault();
     const issue: Issue = {
       id: issues.length + 1,
-      ...newIssue,
+      title: newIssue.title,
+      description: newIssue.description,
+      imageUrl: newIssue.imageUrl,
       status: 'open',
       upvotes: 0,
       downvotes: 0,
@@ -96,7 +82,7 @@ export default function Issues() {
       isAdmin: user?.role === 'admin'
     };
     setIssues([issue, ...issues]);
-    setNewIssue({ title: '', description: '' });
+    setNewIssue({ title: '', description: '', imageUrl: '' });
   };
 
   const handleVote = (issueId: number, voteType: 'up' | 'down') => {
@@ -107,11 +93,9 @@ export default function Issues() {
           let newUpvotes = issue.upvotes;
           let newDownvotes = issue.downvotes;
 
-          // Remove previous vote
           if (previousVote === 'up') newUpvotes--;
           if (previousVote === 'down') newDownvotes--;
 
-          // Add new vote
           if (voteType === 'up' && previousVote !== 'up') newUpvotes++;
           if (voteType === 'down' && previousVote !== 'down') newDownvotes++;
 
@@ -218,6 +202,15 @@ export default function Issues() {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Add Image (Optional)
+            </label>
+            <ImageUpload
+              onImageUpload={(url) => setNewIssue({ ...newIssue, imageUrl: url })}
+              existingImage={newIssue.imageUrl}
+            />
+          </div>
           <button
             type="submit"
             className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -291,6 +284,16 @@ export default function Issues() {
                   {issue.title}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">{issue.description}</p>
+
+                {issue.imageUrl && (
+                  <div className="mb-4">
+                    <img
+                      src={issue.imageUrl}
+                      alt={issue.title}
+                      className="rounded-lg w-full max-h-96 object-cover"
+                    />
+                  </div>
+                )}
 
                 {/* Reddit-style Action Bar */}
                 <div className="flex items-center space-x-4 text-gray-500 dark:text-gray-400">

@@ -1,8 +1,19 @@
 import React, { useState } from 'react';
 import { Search, Plus, MapPin } from 'lucide-react';
+import ImageUpload from '../components/ImageUpload';
+
+interface Item {
+  id: number;
+  title: string;
+  description: string;
+  status: 'lost' | 'found';
+  location: string;
+  date: string;
+  image?: string;
+}
 
 export default function LostFound() {
-  const [items, setItems] = useState([
+  const [items, setItems] = useState<Item[]>([
     {
       id: 1,
       title: 'Lost MacBook Pro',
@@ -26,8 +37,9 @@ export default function LostFound() {
   const [newItem, setNewItem] = useState({
     title: '',
     description: '',
-    status: 'lost',
+    status: 'lost' as const,
     location: '',
+    image: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,10 +48,9 @@ export default function LostFound() {
       id: items.length + 1,
       ...newItem,
       date: new Date().toISOString().split('T')[0],
-      image: 'https://images.unsplash.com/photo-1586168018783-611510e76315?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
     };
     setItems([item, ...items]);
-    setNewItem({ title: '', description: '', status: 'lost', location: '' });
+    setNewItem({ title: '', description: '', status: 'lost', location: '', image: '' });
   };
 
   return (
@@ -66,7 +77,7 @@ export default function LostFound() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
               <select
                 value={newItem.status}
-                onChange={(e) => setNewItem({ ...newItem, status: e.target.value })}
+                onChange={(e) => setNewItem({ ...newItem, status: e.target.value as 'lost' | 'found' })}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
                 <option value="lost">Lost</option>
@@ -94,6 +105,15 @@ export default function LostFound() {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Add Image (Optional)
+            </label>
+            <ImageUpload
+              onImageUpload={(url) => setNewItem({ ...newItem, image: url })}
+              existingImage={newItem.image}
+            />
+          </div>
           <button
             type="submit"
             className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -109,11 +129,13 @@ export default function LostFound() {
             key={item.id}
             className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200"
           >
-            <img
-              src={item.image}
-              alt={item.title}
-              className="w-full h-48 object-cover"
-            />
+            {item.image && (
+              <img
+                src={item.image}
+                alt={item.title}
+                className="w-full h-48 object-cover"
+              />
+            )}
             <div className="p-6">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
