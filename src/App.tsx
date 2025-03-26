@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { useThemeStore } from './store/themeStore';
+import { setupDatabase } from './utils/setupDatabase';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CampusMap from './pages/CampusMap';
@@ -18,6 +19,17 @@ import Layout from './components/Layout';
 function App() {
   const { user, loading } = useAuthStore();
   const isDark = useThemeStore((state) => state.isDark);
+
+  useEffect(() => {
+    // Run database setup when the app starts
+    setupDatabase().then((success) => {
+      if (success) {
+        console.log('Database is ready');
+      } else {
+        console.error('Failed to set up database');
+      }
+    });
+  }, []);
 
   if (loading) {
     return (
