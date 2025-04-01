@@ -7,15 +7,19 @@ interface User {
   role: 'student' | 'admin';
   full_name?: string;
   roll_number?: string;
+  phone_number?: string;
   department?: string;
   year?: number;
+  created_at?: string;
 }
 
 interface AuthState {
   user: User | null;
   loading: boolean;
+  error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUserDetails: (details: Partial<User>) => void;
 }
 
 // Admin credentials
@@ -31,9 +35,10 @@ const DEMO_STUDENT = {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: false,
+  error: null,
 
   signIn: async (email: string, password: string) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       // Check for admin login
       if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
@@ -42,7 +47,8 @@ export const useAuthStore = create<AuthState>((set) => ({
             id: 'admin',
             email: ADMIN_EMAIL,
             role: 'admin'
-          }
+          },
+          error: null
         });
         return;
       }
@@ -58,19 +64,20 @@ export const useAuthStore = create<AuthState>((set) => ({
             roll_number: 'R2024001',
             department: 'Computer Science',
             year: 2
-          }
+          },
+          error: null
         });
         return;
       }
 
       // For other students, check the database
-      const { data: student, error } = await supabase
+      const { data: student, error: fetchError } = await supabase
         .from('students')
         .select('*')
         .eq('email', email)
         .single();
 
-      if (error) {
+      if (fetchError || !student) {
         throw new Error('Student not found. Please contact administrator.');
       }
 
@@ -87,12 +94,16 @@ export const useAuthStore = create<AuthState>((set) => ({
           role: 'student',
           full_name: student.full_name,
           roll_number: student.roll_number,
+          phone_number: student.phone_number,
           department: student.department,
-          year: student.year
-        }
+          year: student.year,
+          created_at: student.created_at
+        },
+        error: null
       });
     } catch (error) {
-      console.error('Sign in error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during sign in';
+      set({ error: errorMessage });
       throw error;
     } finally {
       set({ loading: false });
@@ -102,9 +113,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     set({ loading: true });
     try {
-      set({ user: null });
+      set({ user: null, error: null });
     } finally {
       set({ loading: false });
     }
   },
+
+  updateUserDetails: (details) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...details } : null
+    }));
+  }
 }));
