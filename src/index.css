@@ -12,6 +12,19 @@
     --mesh-color-1: 30, 41, 59;
     --mesh-color-2: 15, 23, 42;
   }
+
+  /* Prevent scroll when mobile menu is open */
+  body.menu-open {
+    overflow: hidden;
+  }
+
+  /* Improve touch targets on mobile */
+  @media (max-width: 768px) {
+    button, a {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
 }
 
 /* 3D Card Effect */
@@ -230,4 +243,30 @@
 .input-enhanced:focus::before {
   content: '';
   @apply absolute -inset-1 bg-primary-500/10 rounded-lg;
+}
+
+/* Mobile Navigation Drawer */
+.mobile-nav-drawer {
+  @apply fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 transform transition-transform duration-300 ease-in-out;
+}
+
+.mobile-nav-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300;
+}
+
+/* Safe Area Padding for Mobile */
+@supports(padding: max(0px)) {
+  .safe-area-padding {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Mobile Touch Feedback */
+@media (hover: none) {
+  .touch-feedback:active {
+    @apply bg-opacity-10;
+  }
 }
