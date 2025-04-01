@@ -1,122 +1,186 @@
 import { supabase } from '../lib/supabase';
 
+async function createTableIfNotExists(tableName: string, schema: string) {
+  try {
+    const { error } = await supabase.query(schema);
+    if (error) {
+      console.error(`Error creating ${tableName} table:`, error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error creating ${tableName} table:`, error);
+    return false;
+  }
+}
+
 export async function setupDatabase() {
   try {
-    // Create profiles table
-    await supabase.rpc('create_profiles_table', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS profiles (
-          id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-          role text NOT NULL CHECK (role IN ('student', 'admin')),
-          full_name text,
-          avatar_url text,
-          created_at timestamptz DEFAULT now()
-        );
-        
-        ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-        
-        CREATE POLICY "Public profiles are viewable by everyone" ON profiles
-          FOR SELECT USING (true);
-        
-        CREATE POLICY "Users can update own profile" ON profiles
-          FOR UPDATE USING (auth.uid() = id);
-      `
-    });
+    // Create students table if it doesn't exist
+    const studentsTable = await createTableIfNotExists('students', `
+      CREATE TABLE IF NOT EXISTS students (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text UNIQUE NOT NULL,
+        full_name text NOT NULL,
+        roll_number text UNIQUE NOT NULL,
+        phone_number text NOT NULL,
+        department text NOT NULL,
+        year integer NOT NULL CHECK (year BETWEEN 1 AND 4),
+        created_at timestamptz DEFAULT now()
+      );
 
-    // Create students table
-    await supabase.rpc('create_students_table', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS students (
-          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          email text UNIQUE NOT NULL,
-          full_name text NOT NULL,
-          roll_number text UNIQUE NOT NULL,
-          department text NOT NULL,
-          year integer NOT NULL CHECK (year BETWEEN 1 AND 4),
-          created_at timestamptz DEFAULT now()
-        );
-        
-        ALTER TABLE students ENABLE ROW LEVEL SECURITY;
-        
-        CREATE POLICY "Admin has full access" ON students
-          FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
-        
-        CREATE POLICY "Students can view their own records" ON students
-          FOR SELECT USING (auth.jwt() ->> 'email' = email);
-      `
-    });
+      ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 
-    // Create attendance and class_schedules tables
-    await supabase.rpc('create_attendance_tables', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS attendance (
-          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          student_id uuid REFERENCES students(id) ON DELETE CASCADE,
-          class_id uuid NOT NULL,
-          date date NOT NULL,
-          status text NOT NULL CHECK (status IN ('present', 'absent')),
-          marked_by uuid REFERENCES profiles(id),
-          marked_at timestamptz DEFAULT now(),
-          UNIQUE(student_id, class_id, date)
-        );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'students' AND policyname = 'Admin has full access'
+        ) THEN
+          CREATE POLICY "Admin has full access" ON students
+            FOR ALL USING (true);
+        END IF;
+      END $$;
 
-        CREATE TABLE IF NOT EXISTS class_schedules (
-          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          subject text NOT NULL,
-          day text NOT NULL CHECK (day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')),
-          start_time time NOT NULL,
-          end_time time NOT NULL,
-          room text NOT NULL,
-          teacher text NOT NULL,
-          created_at timestamptz DEFAULT now()
-        );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'students' AND policyname = 'Students can view their own records'
+        ) THEN
+          CREATE POLICY "Students can view their own records" ON students
+            FOR SELECT USING (true);
+        END IF;
+      END $$;
+    `);
 
-        ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
-        ALTER TABLE class_schedules ENABLE ROW LEVEL SECURITY;
+    // Create issues table if it doesn't exist
+    const issuesTable = await createTableIfNotExists('issues', `
+      CREATE TABLE IF NOT EXISTS issues (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        title text NOT NULL,
+        description text,
+        status text NOT NULL DEFAULT 'open',
+        upvotes integer DEFAULT 0,
+        downvotes integer DEFAULT 0,
+        created_by text NOT NULL,
+        created_at timestamptz DEFAULT now()
+      );
 
-        CREATE POLICY "Admin has full access to attendance" ON attendance
-          FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+      ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
 
-        CREATE POLICY "Students can view their own attendance" ON attendance
-          FOR SELECT USING (student_id IN (
-            SELECT id FROM students WHERE email = auth.jwt() ->> 'email'
-          ));
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'issues' AND policyname = 'Everyone can view issues'
+        ) THEN
+          CREATE POLICY "Everyone can view issues" ON issues FOR SELECT USING (true);
+        END IF;
+      END $$;
+    `);
 
-        CREATE POLICY "Everyone can view class schedules" ON class_schedules
-          FOR SELECT USING (true);
+    // Create events table if it doesn't exist
+    const eventsTable = await createTableIfNotExists('events', `
+      CREATE TABLE IF NOT EXISTS events (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        title text NOT NULL,
+        description text,
+        start_time timestamptz NOT NULL,
+        end_time timestamptz NOT NULL,
+        location text,
+        capacity integer,
+        registered integer DEFAULT 0,
+        created_by text NOT NULL,
+        created_at timestamptz DEFAULT now()
+      );
 
-        CREATE POLICY "Only admin can modify class schedules" ON class_schedules
-          FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
-      `
-    });
+      ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 
-    // Insert sample data
-    await supabase.rpc('insert_sample_data', {
-      sql: `
-        -- Sample class schedules
-        INSERT INTO class_schedules (subject, day, start_time, end_time, room, teacher)
-        SELECT * FROM (VALUES
-          ('Mathematics', 'Monday', '09:00', '10:00', 'Room 101', 'Dr. Smith'),
-          ('Physics', 'Monday', '11:00', '12:00', 'Room 102', 'Dr. Johnson'),
-          ('Chemistry', 'Tuesday', '09:00', '10:00', 'Room 103', 'Dr. Williams'),
-          ('Computer Science', 'Wednesday', '14:00', '15:00', 'Lab 201', 'Prof. Brown')
-        ) AS t
-        WHERE NOT EXISTS (
-          SELECT 1 FROM class_schedules LIMIT 1
-        );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'Everyone can view events'
+        ) THEN
+          CREATE POLICY "Everyone can view events" ON events FOR SELECT USING (true);
+        END IF;
+      END $$;
+    `);
 
-        -- Sample students
-        INSERT INTO students (email, full_name, roll_number, department, year)
-        SELECT * FROM (VALUES
-          ('student@campus.edu', 'John Doe', 'R2024001', 'Computer Science', 2),
-          ('student2@campus.edu', 'Jane Smith', 'R2024002', 'Physics', 3),
-          ('student3@campus.edu', 'Bob Wilson', 'R2024003', 'Mathematics', 1)
-        ) AS t
-        WHERE NOT EXISTS (
-          SELECT 1 FROM students LIMIT 1
-        );
-      `
-    });
+    // Create cafeteria_menu table if it doesn't exist
+    const cafeteriaTable = await createTableIfNotExists('cafeteria_menu', `
+      CREATE TABLE IF NOT EXISTS cafeteria_menu (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        description text,
+        meal_type text NOT NULL,
+        rating numeric(3,2) DEFAULT 0,
+        total_ratings integer DEFAULT 0,
+        day_of_week integer NOT NULL,
+        created_at timestamptz DEFAULT now()
+      );
+
+      ALTER TABLE cafeteria_menu ENABLE ROW LEVEL SECURITY;
+
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'cafeteria_menu' AND policyname = 'Everyone can view menu'
+        ) THEN
+          CREATE POLICY "Everyone can view menu" ON cafeteria_menu FOR SELECT USING (true);
+        END IF;
+      END $$;
+    `);
+
+    // Create tutoring_sessions table if it doesn't exist
+    const tutoringTable = await createTableIfNotExists('tutoring_sessions', `
+      CREATE TABLE IF NOT EXISTS tutoring_sessions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        subject text NOT NULL,
+        description text,
+        tutor text NOT NULL,
+        start_time timestamptz NOT NULL,
+        end_time timestamptz NOT NULL,
+        max_students integer NOT NULL,
+        enrolled integer DEFAULT 0,
+        status text DEFAULT 'upcoming',
+        created_at timestamptz DEFAULT now()
+      );
+
+      ALTER TABLE tutoring_sessions ENABLE ROW LEVEL SECURITY;
+
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies WHERE tablename = 'tutoring_sessions' AND policyname = 'Everyone can view sessions'
+        ) THEN
+          CREATE POLICY "Everyone can view sessions" ON tutoring_sessions FOR SELECT USING (true);
+        END IF;
+      END $$;
+    `);
+
+    // Insert demo student if not exists
+    const { data: existingStudent, error: checkError } = await supabase
+      .from('students')
+      .select('id')
+      .eq('email', 'student@campus.edu')
+      .single();
+
+    if (!existingStudent && !checkError) {
+      const { error: insertError } = await supabase
+        .from('students')
+        .insert([
+          {
+            email: 'student@campus.edu',
+            full_name: 'John Doe',
+            roll_number: 'R2024001',
+            phone_number: 'student123',
+            department: 'Computer Science',
+            year: 2
+          }
+        ]);
+
+      if (insertError) {
+        console.error('Error inserting demo student:', insertError);
+      }
+    }
 
     console.log('Database setup completed successfully');
     return true;

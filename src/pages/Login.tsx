@@ -10,10 +10,11 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
       await signIn(email, password);
     } catch (err) {
-      setError('Invalid email or password');
+      setError(err instanceof Error ? err.message : 'An error occurred during sign in');
     }
   };
 
