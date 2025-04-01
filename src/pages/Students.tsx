@@ -14,6 +14,7 @@ export default function Students() {
     email: '',
     full_name: '',
     roll_number: '',
+    phone_number: '',
     department: '',
     year: 1
   });
@@ -32,7 +33,7 @@ export default function Students() {
       }
       setShowForm(false);
       setEditingStudent(null);
-      setNewStudent({ email: '', full_name: '', roll_number: '', department: '', year: 1 });
+      setNewStudent({ email: '', full_name: '', roll_number: '', phone_number: '', department: '', year: 1 });
     } catch (err) {
       console.error('Error saving student:', err);
     }
@@ -44,6 +45,7 @@ export default function Students() {
       email: student.email,
       full_name: student.full_name,
       roll_number: student.roll_number,
+      phone_number: student.phone_number || '',
       department: student.department,
       year: student.year
     });
@@ -66,8 +68,9 @@ export default function Students() {
           email: row[0],
           full_name: row[1],
           roll_number: row[2],
-          department: row[3],
-          year: parseInt(row[4])
+          phone_number: row[3],
+          department: row[4],
+          year: parseInt(row[5])
         }));
         await importStudents(students);
         setShowImport(false);
@@ -150,6 +153,9 @@ export default function Students() {
                   Email
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Phone Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Roll Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -166,13 +172,13 @@ export default function Students() {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     Loading...
                   </td>
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No students found
                   </td>
                 </tr>
@@ -184,6 +190,9 @@ export default function Students() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {student.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {student.phone_number}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {student.roll_number}
@@ -216,7 +225,6 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Student Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
@@ -257,6 +265,20 @@ export default function Students() {
                   onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={newStudent.phone_number}
+                  onChange={(e) => setNewStudent({ ...newStudent, phone_number: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                  pattern="[0-9]{10}"
+                  title="Please enter a valid 10-digit phone number"
                 />
               </div>
               <div>
@@ -321,7 +343,6 @@ export default function Students() {
         </div>
       )}
 
-      {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
@@ -340,7 +361,7 @@ export default function Students() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Upload a CSV file with the following columns:
                 <br />
-                Email, Full Name, Roll Number, Department, Year
+                Email, Full Name, Roll Number, Phone Number, Department, Year
               </p>
               <input
                 type="file"

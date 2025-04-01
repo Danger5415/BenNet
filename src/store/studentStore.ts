@@ -6,6 +6,7 @@ export interface Student {
   email: string;
   full_name: string;
   roll_number: string;
+  phone_number: string;
   department: string;
   year: number;
   created_at?: string;
@@ -48,15 +49,20 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   addStudent: async (student) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('students')
-        .insert([student]);
+        .insert([student])
+        .select()
+        .single();
 
       if (error) throw error;
-      await get().fetchStudents();
+      
+      const students = get().students;
+      set({ students: [data, ...students] });
     } catch (error) {
       set({ error: (error as Error).message });
       console.error('Error adding student:', error);
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -65,16 +71,23 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   updateStudent: async (id, student) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('students')
         .update(student)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) throw error;
-      await get().fetchStudents();
+
+      const students = get().students.map(s => 
+        s.id === id ? { ...s, ...data } : s
+      );
+      set({ students });
     } catch (error) {
       set({ error: (error as Error).message });
       console.error('Error updating student:', error);
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -89,10 +102,13 @@ export const useStudentStore = create<StudentState>((set, get) => ({
         .eq('id', id);
 
       if (error) throw error;
-      await get().fetchStudents();
+
+      const students = get().students.filter(s => s.id !== id);
+      set({ students });
     } catch (error) {
       set({ error: (error as Error).message });
       console.error('Error deleting student:', error);
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -101,15 +117,19 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   importStudents: async (students) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('students')
-        .insert(students);
+        .insert(students)
+        .select();
 
       if (error) throw error;
-      await get().fetchStudents();
+
+      const currentStudents = get().students;
+      set({ students: [...(data || []), ...currentStudents] });
     } catch (error) {
       set({ error: (error as Error).message });
       console.error('Error importing students:', error);
+      throw error;
     } finally {
       set({ loading: false });
     }
