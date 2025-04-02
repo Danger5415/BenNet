@@ -20,6 +20,7 @@ export default function Teachers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const [newTeacher, setNewTeacher] = useState({
     email: '',
@@ -34,7 +35,7 @@ export default function Teachers() {
       try {
         await fetchTeachers();
       } catch (error) {
-        console.error('Error loading teachers:', error);
+        setLocalError(error instanceof Error ? error.message : 'Failed to load teachers');
       }
     };
     loadTeachers();
@@ -46,40 +47,49 @@ export default function Teachers() {
 
     try {
       setSubmitting(true);
+      setLocalError(null);
+      
       if (editingTeacher) {
         await updateTeacher(editingTeacher.id, newTeacher);
       } else {
         await addTeacher(newTeacher);
       }
+      
       setShowForm(false);
       setEditingTeacher(null);
       setNewTeacher({ email: '', full_name: '', department: '', phone_number: '', subjects: [] });
     } catch (err) {
-      console.error('Error saving teacher:', err);
+      setLocalError(err instanceof Error ? err.message : 'An error occurred while saving');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleEdit = (teacher: Teacher) => {
-    setEditingTeacher(teacher);
-    setNewTeacher({
-      email: teacher.email,
-      full_name: teacher.full_name,
-      department: teacher.department,
-      phone_number: teacher.phone_number,
-      subjects: teacher.subjects
-    });
-    setShowForm(true);
+    try {
+      setEditingTeacher(teacher);
+      setNewTeacher({
+        email: teacher.email,
+        full_name: teacher.full_name,
+        department: teacher.department,
+        phone_number: teacher.phone_number,
+        subjects: teacher.subjects
+      });
+      setShowForm(true);
+      setLocalError(null);
+    } catch (err) {
+      setLocalError('Failed to edit teacher');
+    }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      try {
-        await deleteTeacher(id);
-      } catch (err) {
-        console.error('Error deleting teacher:', err);
-      }
+    if (!window.confirm('Are you sure you want to delete this teacher?')) return;
+    
+    try {
+      setLocalError(null);
+      await deleteTeacher(id);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Failed to delete teacher');
     }
   };
 
@@ -87,36 +97,48 @@ export default function Teachers() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
-      complete: async (results) => {
-        try {
-          const teachers = results.data.slice(1).map((row: any) => ({
-            email: row[0],
-            full_name: row[1],
-            department: row[2],
-            phone_number: row[3],
-            subjects: row[4].split(',').map((s: string) => s.trim())
-          }));
-          await importTeachers(teachers);
-          setShowImport(false);
-        } catch (err) {
-          console.error('Error importing teachers:', err);
-        }
-      },
-      header: false
-    });
+    try {
+      setLocalError(null);
+      Papa.parse(file, {
+        complete: async (results) => {
+          try {
+            const teachers = results.data.slice(1).map((row: any) => ({
+              email: row[0],
+              full_name: row[1],
+              department: row[2],
+              phone_number: row[3],
+              subjects: row[4].split(',').map((s: string) => s.trim())
+            }));
+            await importTeachers(teachers);
+            setShowImport(false);
+          } catch (err) {
+            setLocalError(err instanceof Error ? err.message : 'Failed to import teachers');
+          }
+        },
+        error: (error) => {
+          setLocalError(`Failed to parse CSV: ${error.message}`);
+        },
+        header: false
+      });
+    } catch (err) {
+      setLocalError('Failed to process file');
+    }
   };
 
   const handleExport = () => {
     try {
-      const csv = Papa.unparse(teachers);
+      setLocalError(null);
+      const csv = Papa.unparse(teachers.map(teacher => ({
+        ...teacher,
+        subjects: teacher.subjects.join(', ')
+      })));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'teachers.csv';
       link.click();
     } catch (err) {
-      console.error('Error exporting teachers:', err);
+      setLocalError('Failed to export teachers');
     }
   };
 
@@ -133,6 +155,8 @@ export default function Teachers() {
       </div>
     );
   }
+
+  const displayError = localError || error;
 
   return (
     <div className="space-y-6">
@@ -167,12 +191,15 @@ export default function Teachers() {
         </div>
       </div>
 
-      {error && (
+      {displayError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
           <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
+          {displayError}
           <button
-            onClick={clearError}
+            onClick={() => {
+              setLocalError(null);
+              clearError();
+            }}
             className="ml-auto text-red-700 hover:text-red-900"
           >
             <X className="h-4 w-4" />
@@ -284,6 +311,7 @@ export default function Teachers() {
                 onClick={() => {
                   setShowForm(false);
                   setEditingTeacher(null);
+                  setLocalError(null);
                 }}
                 className="text-gray-400 hover:text-gray-500"
               >
@@ -363,6 +391,7 @@ export default function Teachers() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingTeacher(null);
+                    setLocalError(null);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   disabled={submitting}
@@ -391,7 +420,10 @@ export default function Teachers() {
                 Import Teachers
               </h3>
               <button
-                onClick={() => setShowImport(false)}
+                onClick={() => {
+                  setShowImport(false);
+                  setLocalError(null);
+                }}
                 className="text-gray-400 hover:text-gray-500"
               >
                 <X className="h-5 w-5" />
@@ -416,7 +448,10 @@ export default function Teachers() {
                   dark:file:bg-blue-900 dark:file:text-blue-200"
               />
               <button
-                onClick={() => setShowImport(false)}
+                onClick={() => {
+                  setShowImport(false);
+                  setLocalError(null);
+                }}
                 className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
               >
                 Cancel

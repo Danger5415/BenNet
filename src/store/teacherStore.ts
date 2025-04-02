@@ -31,8 +31,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   fetchTeachers: async () => {
-    set({ loading: true, error: null });
     try {
+      set({ loading: true, error: null });
       const { data, error } = await supabase
         .from('teachers')
         .select('*')
@@ -42,7 +42,7 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       set({ teachers: data || [], error: null });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch teachers';
-      set({ error: errorMessage });
+      set({ error: errorMessage, teachers: [] });
       throw error;
     } finally {
       set({ loading: false });
@@ -50,8 +50,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
   },
 
   addTeacher: async (teacher) => {
-    set({ loading: true, error: null });
     try {
+      set({ loading: true, error: null });
       const { data, error } = await supabase
         .from('teachers')
         .insert([teacher])
@@ -72,8 +72,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
   },
 
   updateTeacher: async (id, teacher) => {
-    set({ loading: true, error: null });
     try {
+      set({ loading: true, error: null });
       const { data, error } = await supabase
         .from('teachers')
         .update(teacher)
@@ -97,8 +97,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
   },
 
   deleteTeacher: async (id) => {
-    set({ loading: true, error: null });
     try {
+      set({ loading: true, error: null });
       const { error } = await supabase
         .from('teachers')
         .delete()
@@ -118,8 +118,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
   },
 
   importTeachers: async (teachers) => {
-    set({ loading: true, error: null });
     try {
+      set({ loading: true, error: null });
       const { data, error } = await supabase
         .from('teachers')
         .insert(teachers)
