@@ -1,171 +1,221 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Crosshair } from 'lucide-react';
+import { MapPin, Navigation, Crosshair, View as StreetView } from 'lucide-react';
+import { Loader } from '@googlemaps/js-api-loader';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Location {
-  latitude: number;
-  longitude: number;
+  id: string;
+  name: string;
+  type: string;
+  position: [number, number];
 }
 
-interface MapLocation {
-  id: number;
-  name: string;
-  description: string;
-  coordinates: string;
-}
+const locations: Location[] = [
+  { id: '1', name: 'Main Library', type: 'library', position: [28.450717, 77.584179] },
+  { id: '2', name: 'Student Center', type: 'academic', position: [28.450670058390724, 77.5851124293879] },
+  { id: '3', name: 'Campus Cafe', type: 'cafe', position: [28.450467246789973, 77.58517143798156] },
+  { id: '4', name: 'University Store', type: 'store', position: [28.449604113999268, 77.58437213975868] }
+];
+
+const STREET_VIEW_LOCATION = { lat: 28.44954279827964, lng: 77.58377668948151 };
+const GOOGLE_MAPS_API_KEY = 'AIzaSyAcjBM7lfQtwKJ2BuKnGa--CokjK_IlZj4';
 
 export default function CampusMap() {
-  const [userLocation, setUserLocation] = useState<Location | null>(null);
-  const [isTracking, setIsTracking] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [showStreetView, setShowStreetView] = useState(false);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const mapRef = useRef<HTMLDivElement>(null);
-  const markerRef = useRef<HTMLDivElement>(null);
-
-  const locations: MapLocation[] = [
-    { id: 1, name: 'Main Building', description: 'Administrative offices and main lecture halls', coordinates: 'Block-A' },
-    { id: 2, name: 'Library', description: '24/7 study spaces and resources', coordinates: 'Block-B' },
-    { id: 3, name: 'Student Center', description: 'Cafeteria and student activities', coordinates: 'Block-M' },
-    { id: 4, name: 'Sports Complex', description: 'Gym and sports facilities', coordinates: 'Sports Complex' },
-  ];
+  const streetViewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isTracking) return;
+    const loader = new Loader({
+      apiKey: GOOGLE_MAPS_API_KEY,
+      version: 'weekly',
+    });
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setUserLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+    loader.load().then(() => {
+      if (mapRef.current) {
+        const mapInstance = new google.maps.Map(mapRef.current, {
+          center: { lat: 28.450467246789973, lng: 77.58517143798156 },
+          zoom: 18,
+          mapTypeId: 'satellite',
+          styles: [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'on' }]
+            }
+          ]
         });
-        setError('');
-        updateMarkerPosition(position.coords.latitude, position.coords.longitude);
-      },
-      (err) => {
-        setError('Error accessing location: ' + err.message);
-        setIsTracking(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
+
+        setMap(mapInstance);
+
+        // Create markers for each location
+        const newMarkers = locations.map(location => {
+          const marker = new google.maps.Marker({
+            position: { lat: location.position[0], lng: location.position[1] },
+            map: mapInstance,
+            title: location.name,
+            animation: google.maps.Animation.DROP,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: getMarkerColor(location.type),
+              fillOpacity: 0.8,
+              strokeWeight: 2,
+              strokeColor: '#ffffff'
+            }
+          });
+
+          // Add click listener to marker
+          marker.addListener('click', () => {
+            setSelectedLocation(location);
+            marker.setAnimation(google.maps.Animation.BOUNCE);
+            setTimeout(() => marker.setAnimation(null), 1500);
+          });
+
+          return marker;
+        });
+
+        setMarkers(newMarkers);
+        setIsLoading(false);
       }
-    );
+    });
+  }, []);
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, [isTracking]);
+  useEffect(() => {
+    if (showStreetView && streetViewRef.current) {
+      const panorama = new google.maps.StreetViewPanorama(streetViewRef.current, {
+        position: STREET_VIEW_LOCATION,
+        pov: { heading: 165, pitch: 0 },
+        zoom: 1,
+        motionTracking: false,
+        motionTrackingControl: true,
+        fullscreenControl: true
+      });
 
-  const updateMarkerPosition = (latitude: number, longitude: number) => {
-    if (markerRef.current && mapRef.current) {
-      // Convert GPS coordinates to relative position on the map
-      // This is a simplified example - you'll need to adjust based on your actual map coordinates
-      const mapRect = mapRef.current.getBoundingClientRect();
-      const x = ((longitude + 180) / 360) * mapRect.width;
-      const y = ((90 - latitude) / 180) * mapRect.height;
-      
-      markerRef.current.style.transform = `translate(${x}px, ${y}px)`;
+      if (map) {
+        map.setStreetView(panorama);
+      }
+    }
+  }, [showStreetView, map]);
+
+  const getMarkerColor = (type: string): string => {
+    switch (type) {
+      case 'library': return '#4CAF50';
+      case 'academic': return '#2196F3';
+      case 'cafe': return '#FF9800';
+      case 'store': return '#9C27B0';
+      default: return '#FF5722';
     }
   };
 
-  const toggleTracking = () => {
-    if (!isTracking) {
-      if (!navigator.geolocation) {
-        setError('Geolocation is not supported by your browser');
-        return;
-      }
-      setIsTracking(true);
-    } else {
-      setIsTracking(false);
-      setUserLocation(null);
-    }
+  const toggleStreetView = () => {
+    setShowStreetView(!showStreetView);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold dark:text-white">Campus Map</h1>
-        <button
-          onClick={toggleTracking}
+        <motion.button
+          onClick={toggleStreetView}
           className={`flex items-center px-4 py-2 rounded-lg ${
-            isTracking
+            showStreetView
               ? 'bg-red-500 hover:bg-red-600'
               : 'bg-blue-500 hover:bg-blue-600'
           } text-white transition-colors duration-200`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          {isTracking ? (
-            <>
-              <Navigation className="h-5 w-5 mr-2" />
-              Stop Tracking
-            </>
-          ) : (
-            <>
-              <Crosshair className="h-5 w-5 mr-2" />
-              Start Tracking
-            </>
-          )}
-        </button>
+          <StreetView className="h-5 w-5 mr-2" />
+          {showStreetView ? 'Exit Street View' : 'Enter Street View'}
+        </motion.button>
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md relative">
-          <div 
-            ref={mapRef}
-            className="relative w-full overflow-hidden rounded-lg"
-          >
-            <img
-              src="https://images.unsplash.com/photo-1562774053-701939374585?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80"
-              alt="Bennett University Campus Map"
-              className="w-full h-auto rounded-lg"
-            />
-            {isTracking && (
-              <div
-                ref={markerRef}
-                className="absolute w-4 h-4 bg-blue-500 rounded-full shadow-lg pulse-animation"
-                style={{
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)'
-                }}
-              />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 flex items-center justify-center rounded-lg z-10">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              </div>
             )}
+            <div 
+              ref={mapRef}
+              className="w-full h-[500px] rounded-lg overflow-hidden"
+            />
+            <AnimatePresence>
+              {showStreetView && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="absolute inset-0 bg-black rounded-lg overflow-hidden"
+                >
+                  <div ref={streetViewRef} className="w-full h-full" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          {userLocation && (
-            <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-              Current Location: {userLocation.latitude.toFixed(6)}, {userLocation.longitude.toFixed(6)}
-            </div>
-          )}
         </div>
 
         <div className="space-y-4">
-          {locations.map((location) => (
-            <div
-              key={location.id}
-              className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200"
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-medium mb-4 dark:text-white">Campus Locations</h2>
+            <div className="space-y-3">
+              {locations.map((location) => (
+                <motion.div
+                  key={location.id}
+                  className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${
+                    selectedLocation?.id === location.id
+                      ? 'bg-blue-50 dark:bg-blue-900'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                  onClick={() => {
+                    setSelectedLocation(location);
+                    map?.panTo({ lat: location.position[0], lng: location.position[1] });
+                    map?.setZoom(19);
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="flex items-center">
+                    <div
+                      className="w-3 h-3 rounded-full mr-3"
+                      style={{ backgroundColor: getMarkerColor(location.type) }}
+                    />
+                    <div>
+                      <h3 className="font-medium dark:text-white">{location.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                        {location.type}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {selectedLocation && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"
             >
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <MapPin className="h-6 w-6 text-blue-500 dark:text-blue-400" />
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                    {location.name}
-                  </h3>
-                  <p className="mt-1 text-gray-500 dark:text-gray-400">
-                    {location.description}
-                  </p>
-                  <p className="mt-1 text-sm text-blue-500 dark:text-blue-400">
-                    Location: {location.coordinates}
-                  </p>
+              <h2 className="text-lg font-medium mb-4 dark:text-white">Location Details</h2>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold dark:text-white">{selectedLocation.name}</h3>
+                <p className="text-gray-600 dark:text-gray-400 capitalize">{selectedLocation.type}</p>
+                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  {selectedLocation.position[0].toFixed(6)}, {selectedLocation.position[1].toFixed(6)}
                 </div>
               </div>
-            </div>
-          ))}
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
