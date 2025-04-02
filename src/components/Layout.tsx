@@ -20,6 +20,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -50,10 +51,13 @@ export default function Layout({ children }: LayoutProps) {
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
+    // Prevent body scroll when menu is open
+    document.body.style.overflow = !isMobileMenuOpen ? 'hidden' : 'auto';
   };
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
+    document.body.style.overflow = 'auto';
   };
 
   const NavigationContent = () => (
@@ -156,32 +160,61 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className={`min-h-screen theme-transition ${isDark ? 'dark bg-gray-900' : 'bg-gray-100'}`}>
       {/* Mobile menu button */}
-      <div className="fixed top-4 left-4 z-50 md:hidden">
-        <button
-          onClick={toggleMobileMenu}
-          className={`p-2 rounded-md ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-lg`}
-        >
-          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-      </div>
+      <motion.button
+        onClick={toggleMobileMenu}
+        className={`fixed top-4 left-4 z-50 md:hidden p-2 rounded-md ${
+          isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
+        } shadow-lg`}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={isMobileMenuOpen ? 'close' : 'menu'}
+            initial={{ opacity: 0, rotate: -180 }}
+            animate={{ opacity: 1, rotate: 0 }}
+            exit={{ opacity: 0, rotate: 180 }}
+            transition={{ duration: 0.2 }}
+          >
+            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </motion.div>
+        </AnimatePresence>
+      </motion.button>
 
       <div className="flex h-screen">
         {/* Mobile Navigation Drawer */}
-        <div
-          className={`fixed inset-y-0 left-0 transform ${
-            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-          } md:hidden transition-transform duration-300 ease-in-out z-40 w-64 ${
-            isDark ? 'dark-card border-gray-700' : 'light-card border-gray-200'
-          } border-r`}
-        >
-          <div className="flex flex-col h-full">
-            <div className="flex-grow overflow-y-auto pt-5">
-              <NavigationContent />
-            </div>
-            <UserSection />
-            <ThemeToggle />
-          </div>
-        </div>
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden"
+                onClick={closeMobileMenu}
+              />
+              <motion.div
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className={`fixed inset-y-0 left-0 w-64 z-40 md:hidden ${
+                  isDark ? 'dark-card border-gray-700' : 'light-card border-gray-200'
+                } border-r backdrop-blur-lg bg-white/90 dark:bg-gray-800/90`}
+              >
+                <div className="flex flex-col h-full">
+                  <div className="flex-grow overflow-y-auto pt-5">
+                    <NavigationContent />
+                  </div>
+                  <UserSection />
+                  <ThemeToggle />
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Desktop Sidebar */}
         <div className="hidden md:flex md:flex-shrink-0">
@@ -193,14 +226,6 @@ export default function Layout({ children }: LayoutProps) {
             <ThemeToggle />
           </div>
         </div>
-
-        {/* Overlay for mobile menu */}
-        {isMobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-            onClick={closeMobileMenu}
-          />
-        )}
 
         {/* Main content */}
         <div className="flex flex-col flex-1 overflow-hidden">
