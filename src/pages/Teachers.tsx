@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { useTeacherStore, Teacher } from '../store/teacherStore';
-import { Plus, Upload, Download, Search, Edit2, Trash2, X, Check, AlertCircle } from 'lucide-react';
+import { useTeacherStore } from '../store/teacherStore';
+import { Plus, Upload, Download, Search, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
 import Papa from 'papaparse';
 
+interface Teacher {
+  id: string;
+  email: string;
+  full_name: string;
+  department: string;
+  phone_number: string;
+  subjects: string[];
+  created_at?: string;
+}
+
 export default function Teachers() {
-  const { teachers, loading, error, fetchTeachers, addTeacher, updateTeacher, deleteTeacher, importTeachers } = useTeacherStore();
+  const { teachers, loading, error, fetchTeachers, addTeacher, updateTeacher, deleteTeacher, importTeachers, clearError } = useTeacherStore();
   const [showForm, setShowForm] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [newTeacher, setNewTeacher] = useState({
     email: '',
@@ -19,12 +30,22 @@ export default function Teachers() {
   });
 
   useEffect(() => {
-    fetchTeachers();
+    const loadTeachers = async () => {
+      try {
+        await fetchTeachers();
+      } catch (error) {
+        console.error('Error loading teachers:', error);
+      }
+    };
+    loadTeachers();
   }, [fetchTeachers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       if (editingTeacher) {
         await updateTeacher(editingTeacher.id, newTeacher);
       } else {
@@ -35,6 +56,8 @@ export default function Teachers() {
       setNewTeacher({ email: '', full_name: '', department: '', phone_number: '', subjects: [] });
     } catch (err) {
       console.error('Error saving teacher:', err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -51,8 +74,12 @@ export default function Teachers() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this teacher?')) {
-      await deleteTeacher(id);
+    if (window.confirm('Are you sure you want to delete this teacher?')) {
+      try {
+        await deleteTeacher(id);
+      } catch (err) {
+        console.error('Error deleting teacher:', err);
+      }
     }
   };
 
@@ -62,27 +89,35 @@ export default function Teachers() {
 
     Papa.parse(file, {
       complete: async (results) => {
-        const teachers = results.data.slice(1).map((row: any) => ({
-          email: row[0],
-          full_name: row[1],
-          department: row[2],
-          phone_number: row[3],
-          subjects: row[4].split(',').map((s: string) => s.trim())
-        }));
-        await importTeachers(teachers);
-        setShowImport(false);
+        try {
+          const teachers = results.data.slice(1).map((row: any) => ({
+            email: row[0],
+            full_name: row[1],
+            department: row[2],
+            phone_number: row[3],
+            subjects: row[4].split(',').map((s: string) => s.trim())
+          }));
+          await importTeachers(teachers);
+          setShowImport(false);
+        } catch (err) {
+          console.error('Error importing teachers:', err);
+        }
       },
       header: false
     });
   };
 
   const handleExport = () => {
-    const csv = Papa.unparse(teachers);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'teachers.csv';
-    link.click();
+    try {
+      const csv = Papa.unparse(teachers);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'teachers.csv';
+      link.click();
+    } catch (err) {
+      console.error('Error exporting teachers:', err);
+    }
   };
 
   const filteredTeachers = teachers.filter(teacher =>
@@ -90,6 +125,14 @@ export default function Teachers() {
     teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     teacher.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -111,7 +154,11 @@ export default function Teachers() {
             Export
           </button>
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              setEditingTeacher(null);
+              setNewTeacher({ email: '', full_name: '', department: '', phone_number: '', subjects: [] });
+              setShowForm(true);
+            }}
             className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -124,6 +171,12 @@ export default function Teachers() {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
           <AlertCircle className="h-5 w-5 mr-2" />
           {error}
+          <button
+            onClick={clearError}
+            className="ml-auto text-red-700 hover:text-red-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
@@ -153,6 +206,9 @@ export default function Teachers() {
                   Department
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Phone Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Subjects
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -161,15 +217,9 @@ export default function Teachers() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {loading ? (
+              {filteredTeachers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredTeachers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No teachers found
                   </td>
                 </tr>
@@ -184,6 +234,9 @@ export default function Teachers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {teacher.department}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {teacher.phone_number}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex flex-wrap gap-1">
@@ -312,14 +365,16 @@ export default function Teachers() {
                     setEditingTeacher(null);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={submitting}
                 >
-                  {editingTeacher ? 'Update' : 'Add'} Teacher
+                  {submitting ? 'Saving...' : editingTeacher ? 'Update' : 'Add'} Teacher
                 </button>
               </div>
             </form>

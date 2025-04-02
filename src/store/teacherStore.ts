@@ -20,12 +20,15 @@ interface TeacherState {
   updateTeacher: (id: string, teacher: Partial<Teacher>) => Promise<void>;
   deleteTeacher: (id: string) => Promise<void>;
   importTeachers: (teachers: Array<Omit<Teacher, 'id' | 'created_at'>>) => Promise<void>;
+  clearError: () => void;
 }
 
 export const useTeacherStore = create<TeacherState>((set, get) => ({
   teachers: [],
   loading: false,
   error: null,
+
+  clearError: () => set({ error: null }),
 
   fetchTeachers: async () => {
     set({ loading: true, error: null });
@@ -36,11 +39,11 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      set({ teachers: data || [] });
+      set({ teachers: data || [], error: null });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch teachers';
       set({ error: errorMessage });
-      console.error('Error fetching teachers:', error);
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -58,11 +61,10 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       if (error) throw error;
       
       const teachers = get().teachers;
-      set({ teachers: [data, ...teachers] });
+      set({ teachers: [data, ...teachers], error: null });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add teacher';
       set({ error: errorMessage });
-      console.error('Error adding teacher:', error);
       throw error;
     } finally {
       set({ loading: false });
@@ -84,11 +86,10 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       const teachers = get().teachers.map(t => 
         t.id === id ? { ...t, ...data } : t
       );
-      set({ teachers });
+      set({ teachers, error: null });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update teacher';
       set({ error: errorMessage });
-      console.error('Error updating teacher:', error);
       throw error;
     } finally {
       set({ loading: false });
@@ -106,11 +107,10 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       if (error) throw error;
 
       const teachers = get().teachers.filter(t => t.id !== id);
-      set({ teachers });
+      set({ teachers, error: null });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete teacher';
       set({ error: errorMessage });
-      console.error('Error deleting teacher:', error);
       throw error;
     } finally {
       set({ loading: false });
@@ -128,11 +128,10 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       if (error) throw error;
 
       const currentTeachers = get().teachers;
-      set({ teachers: [...(data || []), ...currentTeachers] });
+      set({ teachers: [...(data || []), ...currentTeachers], error: null });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import teachers';
       set({ error: errorMessage });
-      console.error('Error importing teachers:', error);
       throw error;
     } finally {
       set({ loading: false });
