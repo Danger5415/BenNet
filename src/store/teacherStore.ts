@@ -38,7 +38,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       if (error) throw error;
       set({ teachers: data || [] });
     } catch (error) {
-      set({ error: (error as Error).message });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      set({ error: errorMessage });
       console.error('Error fetching teachers:', error);
     } finally {
       set({ loading: false });
@@ -59,7 +60,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       const teachers = get().teachers;
       set({ teachers: [data, ...teachers] });
     } catch (error) {
-      set({ error: (error as Error).message });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      set({ error: errorMessage });
       console.error('Error adding teacher:', error);
       throw error;
     } finally {
@@ -84,7 +86,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       );
       set({ teachers });
     } catch (error) {
-      set({ error: (error as Error).message });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      set({ error: errorMessage });
       console.error('Error updating teacher:', error);
       throw error;
     } finally {
@@ -105,7 +108,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       const teachers = get().teachers.filter(t => t.id !== id);
       set({ teachers });
     } catch (error) {
-      set({ error: (error as Error).message });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      set({ error: errorMessage });
       console.error('Error deleting teacher:', error);
       throw error;
     } finally {
@@ -126,7 +130,8 @@ export const useTeacherStore = create<TeacherState>((set, get) => ({
       const currentTeachers = get().teachers;
       set({ teachers: [...(data || []), ...currentTeachers] });
     } catch (error) {
-      set({ error: (error as Error).message });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      set({ error: errorMessage });
       console.error('Error importing teachers:', error);
       throw error;
     } finally {

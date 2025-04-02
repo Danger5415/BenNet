@@ -54,7 +54,7 @@ export default function Login() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
+              Password / Phone Number
             </label>
             <input
               id="password"
