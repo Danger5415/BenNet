@@ -18,7 +18,8 @@ import {
   BarChart,
   GraduationCap,
   Menu,
-  X
+  X,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,22 +33,41 @@ export default function Layout({ children }: LayoutProps) {
   const { isDark, toggleTheme } = useThemeStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const baseNavigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Campus Map', href: '/map', icon: MapPin },
-    { name: 'Issues', href: '/issues', icon: AlertCircle },
-    { name: 'Lost & Found', href: '/lost-found', icon: Search },
-    { name: 'Cafeteria Menu', href: '/cafeteria', icon: Coffee },
-    { name: 'Events', href: '/events', icon: Calendar },
-    { name: 'Teaching', href: '/teaching', icon: Book },
-    { name: 'Timetable', href: '/timetable', icon: Clock },
-  ];
+  const getNavigationItems = () => {
+    const baseNavigation = [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { name: 'Campus Map', href: '/map', icon: MapPin },
+      { name: 'Issues', href: '/issues', icon: AlertCircle },
+      { name: 'Lost & Found', href: '/lost-found', icon: Search },
+      { name: 'Timetable', href: '/timetable', icon: Clock },
+    ];
 
-  const navigation = user?.role === 'admin' 
-    ? [...baseNavigation, { name: 'Students', href: '/students', icon: GraduationCap }]
-    : user?.role === 'student'
-    ? [...baseNavigation, { name: 'Attendance', href: '/attendance', icon: BarChart }]
-    : baseNavigation;
+    if (user?.role === 'admin') {
+      return [
+        ...baseNavigation,
+        { name: 'Events', href: '/events', icon: Calendar },
+        { name: 'Teaching', href: '/teaching', icon: Book },
+        { name: 'Cafeteria Menu', href: '/cafeteria', icon: Coffee },
+        { name: 'Students', href: '/students', icon: GraduationCap },
+        { name: 'Teachers', href: '/teachers', icon: Users }
+      ];
+    } else if (user?.role === 'teacher') {
+      return [
+        ...baseNavigation,
+        { name: 'Teaching', href: '/teaching', icon: Book }
+      ];
+    } else {
+      return [
+        ...baseNavigation,
+        { name: 'Events', href: '/events', icon: Calendar },
+        { name: 'Teaching', href: '/teaching', icon: Book },
+        { name: 'Cafeteria Menu', href: '/cafeteria', icon: Coffee },
+        { name: 'Attendance', href: '/attendance', icon: BarChart }
+      ];
+    }
+  };
+
+  const navigation = getNavigationItems();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -116,6 +136,9 @@ export default function Layout({ children }: LayoutProps) {
         <div className="ml-3">
           <p className={`text-sm font-medium theme-transition ${isDark ? 'text-white' : 'text-gray-700'}`}>
             {user?.email}
+          </p>
+          <p className={`text-xs theme-transition ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {user?.role.charAt(0).toUpperCase() + user?.role.slice(1)}
           </p>
           <button
             onClick={() => signOut()}
@@ -219,38 +242,7 @@ export default function Layout({ children }: LayoutProps) {
               >
                 <div className="flex flex-col h-full">
                   <div className="flex-grow overflow-y-auto">
-                    <nav className="px-2 pt-4 space-y-1">
-                      {navigation.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.href;
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            onClick={closeMobileMenu}
-                            className={`nav-item group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
-                              isActive
-                                ? isDark 
-                                  ? 'bg-primary-900/50 text-primary-400 shadow-soft'
-                                  : 'bg-primary-50 text-primary-600 shadow-soft'
-                                : isDark
-                                  ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
-                          >
-                            <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${
-                              isActive 
-                                ? 'text-primary-500' 
-                                : 'group-hover:text-primary-500'
-                            }`} />
-                            {item.name}
-                            {isActive && (
-                              <span className="absolute right-0 w-1 h-8 bg-primary-500 rounded-l-md transform transition-transform duration-200" />
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </nav>
+                    <NavigationContent />
                   </div>
                   <UserSection />
                   <ThemeToggle />

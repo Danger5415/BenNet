@@ -76,6 +76,7 @@ export default function Login() {
           <div className="text-sm text-center text-gray-600">
             <p>Demo Accounts:</p>
             <p>Admin: admin@campus.edu / admin123</p>
+            <p>Teacher: teacher@campus.edu / teacher123</p>
             <p>Student: student@campus.edu / student123</p>
           </div>
         </form>

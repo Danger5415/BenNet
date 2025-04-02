@@ -14,6 +14,7 @@ import CafeteriaMenu from './pages/CafeteriaMenu';
 import Timetable from './pages/Timetable';
 import Attendance from './pages/Attendance';
 import Students from './pages/Students';
+import Teachers from './pages/Teachers';
 import Layout from './components/Layout';
 
 function App() {
@@ -164,10 +165,22 @@ function App() {
               )
             }
           />
+          <Route
+            path="/teachers"
+            element={
+              user?.role === 'admin' ? (
+                <Layout>
+                  <Teachers />
+                </Layout>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
         </Routes>
       </Router>
     </div>
   );
 }
 
-export default App;
+export default App

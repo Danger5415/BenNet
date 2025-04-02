@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabase';
 interface User {
   id: string;
   email: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   full_name?: string;
   roll_number?: string;
   phone_number?: string;
   department?: string;
   year?: number;
+  subjects?: string[];
   created_at?: string;
 }
 
@@ -30,6 +31,12 @@ const ADMIN_PASSWORD = 'admin123';
 const DEMO_STUDENT = {
   email: 'student@campus.edu',
   password: 'student123'
+};
+
+// Demo teacher credentials
+const DEMO_TEACHER = {
+  email: 'teacher@campus.edu',
+  password: 'teacher123'
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -70,37 +77,72 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
 
-      // For other students, check the database
-      const { data: student, error: fetchError } = await supabase
+      // Check for demo teacher
+      if (email === DEMO_TEACHER.email && password === DEMO_TEACHER.password) {
+        set({
+          user: {
+            id: 'demo-teacher',
+            email: DEMO_TEACHER.email,
+            role: 'teacher',
+            full_name: 'Dr. Jane Smith',
+            department: 'Computer Science',
+            subjects: ['Data Structures', 'Algorithms', 'Database Systems']
+          },
+          error: null
+        });
+        return;
+      }
+
+      // Check for student in database
+      const { data: student, error: studentError } = await supabase
         .from('students')
         .select('*')
         .eq('email', email)
         .single();
 
-      if (fetchError || !student) {
-        throw new Error('Student not found. Please contact administrator.');
+      if (student && student.phone_number === password) {
+        set({
+          user: {
+            id: student.id,
+            email: student.email,
+            role: 'student',
+            full_name: student.full_name,
+            roll_number: student.roll_number,
+            phone_number: student.phone_number,
+            department: student.department,
+            year: student.year,
+            created_at: student.created_at
+          },
+          error: null
+        });
+        return;
       }
 
-      // Verify password (phone number)
-      if (password !== student.phone_number) {
-        throw new Error('Invalid password');
+      // Check for teacher in database
+      const { data: teacher, error: teacherError } = await supabase
+        .from('teachers')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (teacher && teacher.phone_number === password) {
+        set({
+          user: {
+            id: teacher.id,
+            email: teacher.email,
+            role: 'teacher',
+            full_name: teacher.full_name,
+            department: teacher.department,
+            phone_number: teacher.phone_number,
+            subjects: teacher.subjects,
+            created_at: teacher.created_at
+          },
+          error: null
+        });
+        return;
       }
 
-      // Set user with student details
-      set({
-        user: {
-          id: student.id,
-          email: student.email,
-          role: 'student',
-          full_name: student.full_name,
-          roll_number: student.roll_number,
-          phone_number: student.phone_number,
-          department: student.department,
-          year: student.year,
-          created_at: student.created_at
-        },
-        error: null
-      });
+      throw new Error('Invalid credentials');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred during sign in';
       set({ error: errorMessage });
