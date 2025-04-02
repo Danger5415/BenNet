@@ -51,7 +51,6 @@ export default function Layout({ children }: LayoutProps) {
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
-    // Prevent body scroll when menu is open
     document.body.style.overflow = !isMobileMenuOpen ? 'hidden' : 'auto';
   };
 
@@ -159,28 +158,42 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className={`min-h-screen theme-transition ${isDark ? 'dark bg-gray-900' : 'bg-gray-100'}`}>
-      {/* Mobile menu button */}
-      <motion.button
-        onClick={toggleMobileMenu}
-        className={`fixed top-4 left-4 z-50 md:hidden p-2 rounded-md ${
-          isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
-        } shadow-lg`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={isMobileMenuOpen ? 'close' : 'menu'}
-            initial={{ opacity: 0, rotate: -180 }}
-            animate={{ opacity: 1, rotate: 0 }}
-            exit={{ opacity: 0, rotate: 180 }}
-            transition={{ duration: 0.2 }}
-          >
-            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </motion.div>
-        </AnimatePresence>
-      </motion.button>
+      {/* Header with logo and menu button for mobile */}
+      <div className="fixed top-0 left-0 right-0 z-50 md:hidden">
+        <div className={`flex items-center justify-between px-4 py-2 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+          <div className="flex items-center">
+            <motion.button
+              onClick={toggleMobileMenu}
+              className={`p-2 rounded-md mr-3 ${
+                isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'
+              } shadow-lg`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={isMobileMenuOpen ? 'close' : 'menu'}
+                  initial={{ opacity: 0, rotate: -180 }}
+                  animate={{ opacity: 1, rotate: 0 }}
+                  exit={{ opacity: 0, rotate: 180 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                </motion.div>
+              </AnimatePresence>
+            </motion.button>
+            <img 
+              src="/logo.svg" 
+              alt="BenNet Logo" 
+              className="h-8 w-8"
+            />
+            <span className={`ml-2 text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              BenNet
+            </span>
+          </div>
+        </div>
+      </div>
 
       <div className="flex h-screen">
         {/* Mobile Navigation Drawer */}
@@ -202,11 +215,42 @@ export default function Layout({ children }: LayoutProps) {
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                 className={`fixed inset-y-0 left-0 w-64 z-40 md:hidden ${
                   isDark ? 'dark-card border-gray-700' : 'light-card border-gray-200'
-                } border-r backdrop-blur-lg bg-white/90 dark:bg-gray-800/90`}
+                } border-r backdrop-blur-lg bg-white/90 dark:bg-gray-800/90 mt-12`}
               >
                 <div className="flex flex-col h-full">
-                  <div className="flex-grow overflow-y-auto pt-5">
-                    <NavigationContent />
+                  <div className="flex-grow overflow-y-auto">
+                    <nav className="px-2 pt-4 space-y-1">
+                      {navigation.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            onClick={closeMobileMenu}
+                            className={`nav-item group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+                              isActive
+                                ? isDark 
+                                  ? 'bg-primary-900/50 text-primary-400 shadow-soft'
+                                  : 'bg-primary-50 text-primary-600 shadow-soft'
+                                : isDark
+                                  ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
+                          >
+                            <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${
+                              isActive 
+                                ? 'text-primary-500' 
+                                : 'group-hover:text-primary-500'
+                            }`} />
+                            {item.name}
+                            {isActive && (
+                              <span className="absolute right-0 w-1 h-8 bg-primary-500 rounded-l-md transform transition-transform duration-200" />
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </nav>
                   </div>
                   <UserSection />
                   <ThemeToggle />
@@ -232,8 +276,8 @@ export default function Layout({ children }: LayoutProps) {
           <main className="flex-1 relative overflow-y-auto focus:outline-none">
             <div className="py-6 page-transition">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                {/* Add padding to account for fixed mobile menu button */}
-                <div className="md:pt-0 pt-12">
+                {/* Add padding to account for fixed mobile header */}
+                <div className="md:pt-0 pt-16">
                   {children}
                 </div>
               </div>
