@@ -27,6 +27,53 @@
   }
 }
 
+/* Navigation Styles */
+.nav-item {
+  @apply relative overflow-hidden;
+}
+
+.nav-item::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary-500/10 to-primary-600/10 dark:from-primary-400/10 dark:to-primary-500/10 opacity-0 transition-opacity duration-300;
+}
+
+.nav-item:hover::before {
+  @apply opacity-100;
+}
+
+.nav-item.active {
+  @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white;
+}
+
+.nav-item.active::before {
+  @apply opacity-0;
+}
+
+.nav-item .nav-indicator {
+  @apply absolute right-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-500 rounded-l-md transform scale-y-0 transition-transform duration-200 origin-right;
+}
+
+.nav-item:hover .nav-indicator {
+  @apply scale-y-100;
+}
+
+.nav-item.active .nav-indicator {
+  @apply scale-y-100 bg-white;
+}
+
+/* Mobile Navigation */
+.mobile-nav {
+  @apply fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 transform transition-transform duration-300 ease-out z-50;
+}
+
+.mobile-nav.open {
+  @apply translate-x-0;
+}
+
+.mobile-nav.closed {
+  @apply -translate-x-full;
+}
+
 /* 3D Card Effect */
 .card-3d {
   transform-style: preserve-3d;
