@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { supabase } from '../lib/supabase';
 
 interface Class {
   id: string;
@@ -49,7 +50,7 @@ const mockStudents: Student[] = [
   { id: '4', email: 'student3@campus.edu' },
 ];
 
-export default function Timetable() {
+function Timetable() {
   const { user } = useAuthStore();
   const [classes, setClasses] = useState<Class[]>([
     {
@@ -158,7 +159,7 @@ export default function Timetable() {
     setShowScanner(true);
   };
 
-  const handleQRScanned = (data: string) => {
+  const handleQRScanned = async (data: string) => {
     if (!data || !selectedClass || !user) return;
 
     const [classId, timestamp] = data.split('-');
@@ -172,33 +173,40 @@ export default function Timetable() {
     }
 
     if (classId === selectedClass.id) {
-      const newAttendance: Attendance = {
-        id: Math.random().toString(),
-        classId: selectedClass.id,
-        studentId: user.id,
-        studentEmail: user.email,
-        date: new Date().toISOString().split('T')[0],
-        status: 'present',
-        timestamp: new Date().toISOString(),
-      };
+      try {
+        // Get student ID
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('id')
+          .eq('email', user.email)
+          .single();
 
-      setAttendanceRecords(prev => {
-        // Check if attendance already exists for this student and class today
-        const existingRecord = prev.find(
-          record => 
-            record.classId === newAttendance.classId && 
-            record.studentId === newAttendance.studentId &&
-            record.date === newAttendance.date
-        );
+        if (studentError || !studentData) {
+          throw new Error('Student not found');
+        }
 
-        if (existingRecord) {
-          alert('Attendance already marked for today');
-          return prev;
+        // Mark attendance
+        const { error: attendanceError } = await supabase
+          .from('class_attendance')
+          .upsert({
+            student_id: studentData.id,
+            class_id: selectedClass.id,
+            status: 'present',
+            marked_by: 'QR Scan',
+            date: new Date().toISOString().split('T')[0]
+          }, {
+            onConflict: 'student_id,class_id,date'
+          });
+
+        if (attendanceError) {
+          throw attendanceError;
         }
 
         alert('Attendance marked successfully!');
-        return [...prev, newAttendance];
-      });
+      } catch (error) {
+        console.error('Error marking attendance:', error);
+        alert('Failed to mark attendance. Please try again.');
+      }
     } else {
       alert('Invalid QR code for this class');
     }
@@ -206,36 +214,31 @@ export default function Timetable() {
     setShowScanner(false);
   };
 
-  const handleManualAttendance = (studentId: string, studentEmail: string, present: boolean) => {
-    if (!selectedClass) return;
+  const handleManualAttendance = async (studentId: string, studentEmail: string, present: boolean) => {
+    if (!selectedClass || !user) return;
 
-    setAttendanceRecords(prev => {
-      const existingRecord = prev.find(
-        record => 
-          record.classId === selectedClass.id && 
-          record.studentId === studentId &&
-          record.date === new Date().toISOString().split('T')[0]
-      );
+    try {
+      const { error: attendanceError } = await supabase
+        .from('class_attendance')
+        .upsert({
+          student_id: studentId,
+          class_id: selectedClass.id,
+          status: present ? 'present' : 'absent',
+          marked_by: user.email,
+          date: new Date().toISOString().split('T')[0]
+        }, {
+          onConflict: 'student_id,class_id,date'
+        });
 
-      if (existingRecord) {
-        return prev.map(record => 
-          record === existingRecord
-            ? { ...record, status: present ? 'present' : 'absent', markedBy: user?.email }
-            : record
-        );
+      if (attendanceError) {
+        throw attendanceError;
       }
 
-      return [...prev, {
-        id: Math.random().toString(),
-        classId: selectedClass.id,
-        studentId,
-        studentEmail,
-        date: new Date().toISOString().split('T')[0],
-        status: present ? 'present' : 'absent',
-        markedBy: user?.email,
-        timestamp: new Date().toISOString(),
-      }];
-    });
+      alert(`Attendance ${present ? 'marked' : 'unmarked'} successfully!`);
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      alert('Failed to mark attendance. Please try again.');
+    }
   };
 
   const handleAddClass = () => {
@@ -713,3 +716,5 @@ export default function Timetable() {
     </div>
   );
 }
+
+export default Timetable;

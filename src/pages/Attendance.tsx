@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, CheckCircle, XCircle, AlertTriangle, BarChart } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface AttendanceStats {
   totalClasses: number;
@@ -24,22 +25,12 @@ interface AttendanceStats {
 export default function Attendance() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<AttendanceStats>({
-    totalClasses: 45,
-    attendedClasses: 38,
-    percentage: 84.44,
+    totalClasses: 0,
+    attendedClasses: 0,
+    percentage: 0,
     status: 'good',
-    subjectWise: {
-      'Mathematics': { total: 15, attended: 13, percentage: 86.67 },
-      'Physics': { total: 15, attended: 12, percentage: 80 },
-      'Chemistry': { total: 15, attended: 13, percentage: 86.67 },
-    },
-    recentAttendance: [
-      { date: '2024-02-25', subject: 'Mathematics', status: 'present' },
-      { date: '2024-02-24', subject: 'Physics', status: 'present' },
-      { date: '2024-02-23', subject: 'Chemistry', status: 'absent' },
-      { date: '2024-02-22', subject: 'Mathematics', status: 'present' },
-      { date: '2024-02-21', subject: 'Physics', status: 'present' },
-    ]
+    subjectWise: {},
+    recentAttendance: []
   });
 
   // Animated circular progress
@@ -49,11 +40,124 @@ export default function Attendance() {
   const strokeDashoffset = circumference - (progressAnimation / 100) * circumference;
 
   useEffect(() => {
+    if (!user) return;
+
+    const fetchAttendanceData = async () => {
+      try {
+        // Get student ID
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+
+        if (!studentData) return;
+
+        // Get overall attendance
+        const { data: overallData } = await supabase
+          .rpc('get_student_attendance', { p_student_id: studentData.id });
+
+        // Get subject-wise attendance
+        const { data: attendanceData } = await supabase
+          .from('class_attendance')
+          .select(`
+            status,
+            class_schedules:class_id (
+              subject
+            )
+          `)
+          .eq('student_id', studentData.id);
+
+        // Process subject-wise attendance
+        const subjectWise: { [key: string]: { total: number; attended: number; percentage: number } } = {};
+        attendanceData?.forEach((record: any) => {
+          const subject = record.class_schedules.subject;
+          if (!subjectWise[subject]) {
+            subjectWise[subject] = { total: 0, attended: 0, percentage: 0 };
+          }
+          subjectWise[subject].total++;
+          if (record.status === 'present') {
+            subjectWise[subject].attended++;
+          }
+        });
+
+        // Calculate percentages
+        Object.keys(subjectWise).forEach(subject => {
+          const { total, attended } = subjectWise[subject];
+          subjectWise[subject].percentage = total > 0 ? (attended / total) * 100 : 0;
+        });
+
+        // Get recent attendance
+        const { data: recentData } = await supabase
+          .from('class_attendance')
+          .select(`
+            date,
+            status,
+            class_schedules:class_id (
+              subject
+            )
+          `)
+          .eq('student_id', studentData.id)
+          .order('date', { ascending: false })
+          .limit(5);
+
+        const recentAttendance = recentData?.map((record: any) => ({
+          date: record.date,
+          subject: record.class_schedules.subject,
+          status: record.status
+        })) || [];
+
+        // Update stats
+        const newStats: AttendanceStats = {
+          totalClasses: overallData?.[0]?.total_classes || 0,
+          attendedClasses: overallData?.[0]?.attended_classes || 0,
+          percentage: overallData?.[0]?.percentage || 0,
+          status: getAttendanceStatus(overallData?.[0]?.percentage || 0),
+          subjectWise,
+          recentAttendance
+        };
+
+        setStats(newStats);
+      } catch (error) {
+        console.error('Error fetching attendance:', error);
+      }
+    };
+
+    fetchAttendanceData();
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('attendance-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'class_attendance'
+        },
+        () => {
+          fetchAttendanceData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setProgressAnimation(stats.percentage);
     }, 100);
     return () => clearTimeout(timer);
   }, [stats.percentage]);
+
+  const getAttendanceStatus = (percentage: number): 'good' | 'warning' | 'danger' => {
+    if (percentage >= 75) return 'good';
+    if (percentage >= 65) return 'warning';
+    return 'danger';
+  };
 
   const getStatusColor = (percentage: number) => {
     if (percentage >= 75) return 'text-green-500 dark:text-green-400';
@@ -137,7 +241,7 @@ export default function Attendance() {
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{subject}</span>
                   <span className={`text-sm font-medium ${getStatusColor(data.percentage)}`}>
-                    {data.percentage}%
+                    {data.percentage.toFixed(1)}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
