@@ -15,6 +15,7 @@ import Timetable from './pages/Timetable';
 import Attendance from './pages/Attendance';
 import Students from './pages/Students';
 import Teachers from './pages/Teachers';
+import Library from './pages/Library';
 import Layout from './components/Layout';
 
 function App() {
@@ -177,10 +178,22 @@ function App() {
               )
             }
           />
+          <Route
+            path="/library"
+            element={
+              user ? (
+                <Layout>
+                  <Library />
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
         </Routes>
       </Router>
     </div>
   );
 }
 
-export default App
+export default App;

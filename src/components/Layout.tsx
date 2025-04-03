@@ -19,7 +19,8 @@ import {
   GraduationCap,
   Menu,
   X,
-  Users
+  Users,
+  Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -40,6 +41,7 @@ export default function Layout({ children }: LayoutProps) {
       { name: 'Issues', href: '/issues', icon: AlertCircle },
       { name: 'Lost & Found', href: '/lost-found', icon: Search },
       { name: 'Timetable', href: '/timetable', icon: Clock },
+      { name: 'Library', href: '/library', icon: Library },
     ];
 
     if (user?.role === 'admin') {
