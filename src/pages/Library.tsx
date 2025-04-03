@@ -109,7 +109,7 @@ export default function Library() {
             My Account
           </button>
           <a
-            href="https://library.bennett.edu.in/"
+            href="https://bennett.refread.com/#/home"
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center"
@@ -219,7 +219,7 @@ export default function Library() {
                   <div className="flex items-center space-x-2">
                     <button
                       className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                      onClick={() => window.open('https://library.bennett.edu.in/', '_blank')}
+                      onClick={() => window.open('https://bennett.refread.com/#/profile', '_blank')}
                     >
                       Renew
                     </button>
@@ -244,7 +244,7 @@ export default function Library() {
                   </div>
                   <button
                     className="px-3 py-1 text-sm bg-red-500 text-white rounded-md hover:bg-red-600"
-                    onClick={() => window.open('https://library.bennett.edu.in/', '_blank')}
+                    onClick={() => window.open('https://bennett.refread.com/#/home', '_blank')}
                   >
                     Pay Fine
                   </button>
@@ -281,7 +281,7 @@ export default function Library() {
                 </div>
               </a>
               <a
-                href="https://library.bennett.edu.in/"
+                href="https://bennett.refread.com/#/profile"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center p-4 border dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
