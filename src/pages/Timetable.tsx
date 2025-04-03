@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check } from 'lucide-react';
+import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check, ZoomIn, ZoomOut } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { supabase } from '../lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Class {
   id: string;
@@ -81,6 +82,10 @@ function Timetable() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [showClassForm, setShowClassForm] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [qrTimer, setQrTimer] = useState<number>(30);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   const [newClass, setNewClass] = useState<Omit<Class, 'id'>>({
     subject: '',
@@ -94,7 +99,25 @@ function Timetable() {
   useEffect(() => {
     if (showQR && selectedClass?.qrCode) {
       generateQRCodeUrl(selectedClass.qrCode);
+      // Start 30-second timer
+      setQrTimer(30);
+      timerRef.current = setInterval(() => {
+        setQrTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setShowQR(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
   }, [showQR, selectedClass]);
 
   useEffect(() => {
@@ -103,9 +126,18 @@ function Timetable() {
     if (showScanner) {
       scanner = new Html5QrcodeScanner(
         'qr-reader',
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          videoConstraints: {
+            facingMode: "environment",
+            zoom: true
+          }
+        },
         false
       );
+
+      scannerRef.current = scanner;
 
       scanner.render((decodedText) => {
         handleQRScanned(decodedText);
@@ -166,8 +198,8 @@ function Timetable() {
     const scanTime = new Date().getTime();
     const qrTimestamp = parseInt(timestamp);
 
-    // QR code is valid for 5 minutes
-    if (scanTime - qrTimestamp > 300000) {
+    // QR code is valid for 30 seconds
+    if (scanTime - qrTimestamp > 30000) {
       alert('QR code has expired');
       return;
     }
@@ -212,6 +244,31 @@ function Timetable() {
     }
 
     setShowScanner(false);
+  };
+
+  const handleZoomIn = () => {
+    const newZoom = Math.min(zoomLevel + 0.5, 4);
+    setZoomLevel(newZoom);
+    updateCameraZoom(newZoom);
+  };
+
+  const handleZoomOut = () => {
+    const newZoom = Math.max(zoomLevel - 0.5, 1);
+    setZoomLevel(newZoom);
+    updateCameraZoom(newZoom);
+  };
+
+  const updateCameraZoom = async (zoom: number) => {
+    try {
+      const track = scannerRef.current?.getVideoElement()?.srcObject?.getVideoTracks()[0];
+      if (track?.getCapabilities?.()?.zoom) {
+        await track.applyConstraints({
+          advanced: [{ zoom }]
+        });
+      }
+    } catch (error) {
+      console.error('Error updating zoom:', error);
+    }
   };
 
   const handleManualAttendance = async (studentId: string, studentEmail: string, present: boolean) => {
@@ -378,7 +435,7 @@ function Timetable() {
                             {classForSlot.teacher}
                           </div>
                           <div className="flex items-center mt-2 space-x-2">
-                            {user?.role === 'admin' ? (
+                            {(user?.role === 'admin' || user?.role === 'teacher') ? (
                               <>
                                 <button
                                   onClick={() => handleGenerateQR(classForSlot)}
@@ -419,7 +476,7 @@ function Timetable() {
                               </button>
                             )}
                           </div>
-                          {user?.role === 'admin' && (
+                          {(user?.role === 'admin' || user?.role === 'teacher') && (
                             <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                               {(() => {
                                 const stats = getAttendanceStats(classForSlot.id);
@@ -453,7 +510,12 @@ function Timetable() {
                 Attendance QR Code for {selectedClass.subject}
               </h3>
               <button
-                onClick={() => setShowQR(false)}
+                onClick={() => {
+                  setShowQR(false);
+                  if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                  }
+                }}
                 className="text-gray-400 hover:text-gray-500"
               >
                 <X className="h-5 w-5" />
@@ -464,11 +526,19 @@ function Timetable() {
                 <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
               )}
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              This QR code will expire in 5 minutes
-            </p>
+            <div className="text-center mb-4">
+              <div className="text-2xl font-bold text-primary-500">{qrTimer}s</div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                QR code will expire in {qrTimer} seconds
+              </p>
+            </div>
             <button
-              onClick={() => setShowQR(false)}
+              onClick={() => {
+                setShowQR(false);
+                if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                }
+              }}
               className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
             >
               Close
@@ -493,6 +563,22 @@ function Timetable() {
               </button>
             </div>
             <div id="qr-reader" className="w-full"></div>
+            <div className="flex justify-center space-x-4 mt-4 mb-4">
+              <button
+                onClick={handleZoomOut}
+                className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut className="h-6 w-6 text-gray-700" />
+              </button>
+              <button
+                onClick={handleZoomIn}
+                className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="h-6 w-6 text-gray-700" />
+              </button>
+            </div>
             <button
               onClick={() => setShowScanner(false)}
               className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mt-4"
@@ -675,7 +761,8 @@ function Timetable() {
                   </label>
                   <input
                     type="time"
-                    value={newClass.endTime}
+                    value={new
+Class.endTime}
                     onChange={(e) => setNewClass({ ...newClass, endTime: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
