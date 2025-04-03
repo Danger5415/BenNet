@@ -124,27 +124,38 @@ function Timetable() {
     let scanner: Html5QrcodeScanner | null = null;
 
     if (showScanner) {
+      // Initialize scanner with better default settings
       scanner = new Html5QrcodeScanner(
         'qr-reader',
-        { 
-          fps: 10, 
+        {
+          fps: 10,
           qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
+          defaultZoomValueIfSupported: 2,
+          // Force rear camera
           videoConstraints: {
-            facingMode: "environment",
-            zoom: true
+            facingMode: { exact: "environment" }
           }
         },
-        false
+        /* verbose= */ false
       );
 
       scannerRef.current = scanner;
 
-      scanner.render((decodedText) => {
-        handleQRScanned(decodedText);
-        if (scanner) {
-          scanner.clear();
+      // Start scanning immediately
+      scanner.render(
+        (decodedText) => {
+          handleQRScanned(decodedText);
+        },
+        (errorMessage) => {
+          // Ignore errors during normal scanning
+          if (!errorMessage.includes('NotFound')) {
+            console.error('QR Scan error:', errorMessage);
+          }
         }
-      }, console.error);
+      );
     }
 
     return () => {
@@ -194,77 +205,96 @@ function Timetable() {
   const handleQRScanned = async (data: string) => {
     if (!data || !selectedClass || !user) return;
 
-    const [classId, timestamp] = data.split('-');
-    const scanTime = new Date().getTime();
-    const qrTimestamp = parseInt(timestamp);
+    try {
+      // Parse QR code data
+      const [classId, timestamp] = data.split('-');
+      const scanTime = new Date().getTime();
+      const qrTimestamp = parseInt(timestamp);
 
-    // QR code is valid for 30 seconds
-    if (scanTime - qrTimestamp > 30000) {
-      alert('QR code has expired');
-      return;
-    }
-
-    if (classId === selectedClass.id) {
-      try {
-        // Get student ID
-        const { data: studentData, error: studentError } = await supabase
-          .from('students')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (studentError || !studentData) {
-          throw new Error('Student not found');
-        }
-
-        // Mark attendance
-        const { error: attendanceError } = await supabase
-          .from('class_attendance')
-          .upsert({
-            student_id: studentData.id,
-            class_id: selectedClass.id,
-            status: 'present',
-            marked_by: 'QR Scan',
-            date: new Date().toISOString().split('T')[0]
-          }, {
-            onConflict: 'student_id,class_id,date'
-          });
-
-        if (attendanceError) {
-          throw attendanceError;
-        }
-
-        alert('Attendance marked successfully!');
-      } catch (error) {
-        console.error('Error marking attendance:', error);
-        alert('Failed to mark attendance. Please try again.');
+      // QR code is valid for 30 seconds
+      if (scanTime - qrTimestamp > 30000) {
+        alert('QR code has expired. Please ask the teacher to generate a new one.');
+        setShowScanner(false);
+        return;
       }
-    } else {
-      alert('Invalid QR code for this class');
-    }
 
-    setShowScanner(false);
+      if (classId !== selectedClass.id) {
+        alert('Invalid QR code for this class');
+        setShowScanner(false);
+        return;
+      }
+
+      // Get student ID
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (studentError || !studentData) {
+        throw new Error('Student not found');
+      }
+
+      // Mark attendance
+      const { error: attendanceError } = await supabase
+        .from('class_attendance')
+        .upsert({
+          student_id: studentData.id,
+          class_id: selectedClass.id,
+          status: 'present',
+          marked_by: 'QR Scan',
+          date: new Date().toISOString().split('T')[0]
+        }, {
+          onConflict: 'student_id,class_id,date'
+        });
+
+      if (attendanceError) {
+        throw attendanceError;
+      }
+
+      alert('Attendance marked successfully!');
+      setShowScanner(false);
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      alert('Failed to mark attendance. Please try again.');
+      setShowScanner(false);
+    }
   };
 
   const handleZoomIn = () => {
-    const newZoom = Math.min(zoomLevel + 0.5, 4);
-    setZoomLevel(newZoom);
-    updateCameraZoom(newZoom);
-  };
-
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoomLevel - 0.5, 1);
-    setZoomLevel(newZoom);
-    updateCameraZoom(newZoom);
-  };
-
-  const updateCameraZoom = async (zoom: number) => {
     try {
       const track = scannerRef.current?.getVideoElement()?.srcObject?.getVideoTracks()[0];
       if (track?.getCapabilities?.()?.zoom) {
-        await track.applyConstraints({
-          advanced: [{ zoom }]
+        const capabilities = track.getCapabilities();
+        const settings = track.getSettings();
+        const newZoom = Math.min(
+          settings.zoom + (capabilities.zoom.step || 1),
+          capabilities.zoom.max
+        );
+        track.applyConstraints({
+          advanced: [{ zoom: newZoom }]
         });
+        setZoomLevel(newZoom);
+      }
+    } catch (error) {
+      console.error('Error updating zoom:', error);
+    }
+  };
+
+  const handleZoomOut = () => {
+    try {
+      const track = scannerRef.current?.getVideoElement()?.srcObject?.getVideoTracks()[0];
+      if (track?.getCapabilities?.()?.zoom) {
+        const capabilities = track.getCapabilities();
+        const settings = track.getSettings();
+        const newZoom = Math.max(
+          settings.zoom - (capabilities.zoom.step || 1),
+          capabilities.zoom.min
+        );
+        track.applyConstraints({
+          advanced: [{ zoom: newZoom }]
+        });
+        setZoomLevel(newZoom);
       }
     } catch (error) {
       console.error('Error updating zoom:', error);
@@ -549,11 +579,11 @@ function Timetable() {
 
       {/* QR Scanner Modal */}
       {showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                Scan Attendance QR Code
+                Scanning Attendance QR Code
               </h3>
               <button
                 onClick={() => setShowScanner(false)}
@@ -562,26 +592,39 @@ function Timetable() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div id="qr-reader" className="w-full"></div>
-            <div className="flex justify-center space-x-4 mt-4 mb-4">
-              <button
-                onClick={handleZoomOut}
-                className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-6 w-6 text-gray-700" />
-              </button>
-              <button
-                onClick={handleZoomIn}
-                className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-6 w-6 text-gray-700" />
-              </button>
+            
+            {/* Scanner Container */}
+            <div className="relative">
+              <div id="qr-reader" className="w-full rounded-lg overflow-hidden" />
+              
+              {/* Custom Zoom Controls */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-4 z-10">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleZoomOut}
+                  className="p-3 bg-white/90 dark:bg-gray-800/90 rounded-full shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ZoomOut className="h-6 w-6 text-gray-700 dark:text-gray-200" />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleZoomIn}
+                  className="p-3 bg-white/90 dark:bg-gray-800/90 rounded-full shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ZoomIn className="h-6 w-6 text-gray-700 dark:text-gray-200" />
+                </motion.button>
+              </div>
             </div>
+
+            <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+              Point your camera at the QR code shown by your teacher
+            </div>
+            
             <button
               onClick={() => setShowScanner(false)}
-              className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mt-4"
+              className="w-full mt-4 bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors"
             >
               Cancel
             </button>
@@ -761,8 +804,7 @@ function Timetable() {
                   </label>
                   <input
                     type="time"
-                    value={new
-Class.endTime}
+                    value={newClass.endTime}
                     onChange={(e) => setNewClass({ ...newClass, endTime: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
