@@ -6,16 +6,19 @@ import { motion } from 'framer-motion';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const signIn = useAuthStore((state) => state.signIn);
+  const setRememberMeStore = useAuthStore((state) => state.setRememberMe);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     try {
-      await signIn(email, password);
+      await signIn(email, password, rememberMe);
+      setRememberMeStore(rememberMe);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign in');
     } finally {
@@ -124,6 +127,21 @@ export default function Login() {
                     className="block w-full pl-10 pr-3 py-2.5 bg-gray-900/50 border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 text-white"
                     placeholder="Enter your password"
                   />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    id="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 text-primary-500 focus:ring-primary-500 border-gray-700 rounded bg-gray-900/50"
+                  />
+                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
+                    Remember me
+                  </label>
                 </div>
               </div>
             </div>
