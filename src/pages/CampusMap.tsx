@@ -15,10 +15,13 @@ const locations: Location[] = [
   { id: '2', name: 'Maggi Hotspot', type: 'cafe', position: [28.450670058390724, 77.5851124293879] },
   { id: '3', name: 'Southern Stories', type: 'cafe', position: [28.450467246789973, 77.58517143798156] },
   { id: '4', name: 'Main Gate', type: 'entrance', position: [28.448542, 77.582418] },
-  { id: '5', name: 'N-BLock', type: 'academic', position: [28.449008946256676, 77.58348015472107] }
+  { id: '5', name: 'N-BLock', type: 'academic', position: [28.449008946256676, 77.58348015472107] },
+  { id: '6', name: 'Gobble', type: 'mess', position: [28.45081824274, 77.58618162138002] },
+  { id: '7', name: 'Sports-Complex', type: 'sports', position: [28.45030463672317, 77.58703699176975] },
+  { id: '8', name: 'Cricket-Ground', type: 'sports', position: [28.450472809386657, 77.58195694564769] }
 ];
 
-const STREET_VIEW_LOCATION = { lat: 28.44954279827964, lng: 77.58377668948151 };
+const STREET_VIEW_LOCATION = { lat: 28.4500862, lng: 77.5846569 };
 const GOOGLE_MAPS_API_KEY = 'AIzaSyAcjBM7lfQtwKJ2BuKnGa--CokjK_IlZj4';
 
 export default function CampusMap() {
@@ -109,6 +112,8 @@ export default function CampusMap() {
       case 'academic': return '#2196F3';
       case 'cafe': return '#FF9800';
       case 'entrance': return '#9C27B0';
+      case 'mess': return '#C90E69';
+      case 'sports': return '#FA6B11';
       default: return '#FF5722';
     }
   };
