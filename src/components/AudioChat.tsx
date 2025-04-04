@@ -387,7 +387,7 @@ export default function AudioChat({ sessionId, onClose }: AudioChatProps) {
             </div>
 
             {/* Participants */}
-            <div className="space-y-4 mb-8">
+            <div className="space-y-4">
               {/* Local participant */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -476,7 +476,7 @@ export default function AudioChat({ sessionId, onClose }: AudioChatProps) {
             </div>
 
             {/* Controls */}
-            <div className="flex justify-center space-x-4">
+            <div className="flex justify-center space-x-4 mt-6">
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, CameraOff, Mic, MicOff, PhoneOff, Video, VideoOff, Users, MessageSquare, ZoomIn, ZoomOut, Settings } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, PhoneOff, Video, VideoOff, Users, MessageSquare, ZoomIn, ZoomOut, Settings, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
@@ -482,6 +482,14 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
     };
   };
 
+  const getGridColumns = () => {
+    const totalParticipants = participants.size + 1; // Including local participant
+    if (totalParticipants <= 1) return 'grid-cols-1';
+    if (totalParticipants <= 4) return 'grid-cols-2';
+    if (totalParticipants <= 9) return 'grid-cols-3';
+    return 'grid-cols-4';
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="w-full h-full p-4 flex flex-col">
@@ -498,11 +506,7 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         )}
 
         {/* Video Grid */}
-        <div className={`flex-1 grid gap-4 p-4 ${
-          participants.size <= 1 ? 'grid-cols-1' :
-          participants.size <= 4 ? 'grid-cols-2' :
-          'grid-cols-3'
-        }`}>
+        <div className={`flex-1 grid gap-4 p-4 ${getGridColumns()}`}>
           {/* Local Video */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
