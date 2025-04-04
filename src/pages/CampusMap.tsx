@@ -11,10 +11,11 @@ interface Location {
 }
 
 const locations: Location[] = [
-  { id: '1', name: 'Main Library', type: 'library', position: [28.450717, 77.584179] },
-  { id: '2', name: 'Student Center', type: 'academic', position: [28.450670058390724, 77.5851124293879] },
-  { id: '3', name: 'Campus Cafe', type: 'cafe', position: [28.450467246789973, 77.58517143798156] },
-  { id: '4', name: 'University Store', type: 'store', position: [28.449604113999268, 77.58437213975868] }
+  { id: '1', name: 'Main Library', type: 'library', position: [28.450362, 77.584115] },
+  { id: '2', name: 'Maggi Hotspot', type: 'cafe', position: [28.450670058390724, 77.5851124293879] },
+  { id: '3', name: 'Southern Stories', type: 'cafe', position: [28.450467246789973, 77.58517143798156] },
+  { id: '4', name: 'Main Gate', type: 'entrance', position: [28.448542, 77.582418] }
+  { id: '5', name: 'N-BLock', type: 'academic', position: [28.448641, 77.5827935] }
 ];
 
 const STREET_VIEW_LOCATION = { lat: 28.44954279827964, lng: 77.58377668948151 };
@@ -107,7 +108,7 @@ export default function CampusMap() {
       case 'library': return '#4CAF50';
       case 'academic': return '#2196F3';
       case 'cafe': return '#FF9800';
-      case 'store': return '#9C27B0';
+      case 'entrance': return '#9C27B0';
       default: return '#FF5722';
     }
   };
