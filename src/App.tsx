@@ -16,6 +16,8 @@ import Attendance from './pages/Attendance';
 import Students from './pages/Students';
 import Teachers from './pages/Teachers';
 import Library from './pages/Library';
+import StudyMaterial from './pages/StudyMaterial';
+import Assignments from './pages/Assignments';
 import Layout from './components/Layout';
 
 function App() {
@@ -184,6 +186,30 @@ function App() {
               user ? (
                 <Layout>
                   <Library />
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/study-material"
+            element={
+              user ? (
+                <Layout>
+                  <StudyMaterial />
+                </Layout>
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
+          <Route
+            path="/assignments"
+            element={
+              user ? (
+                <Layout>
+                  <Assignments />
                 </Layout>
               ) : (
                 <Navigate to="/login" />

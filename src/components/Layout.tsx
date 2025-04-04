@@ -20,7 +20,9 @@ import {
   Menu,
   X,
   Users,
-  Library
+  Library,
+  FileText,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,6 +44,8 @@ export default function Layout({ children }: LayoutProps) {
       { name: 'Lost & Found', href: '/lost-found', icon: Search },
       { name: 'Timetable', href: '/timetable', icon: Clock },
       { name: 'Library', href: '/library', icon: Library },
+      { name: 'Study Material', href: '/study-material', icon: BookOpen },
+      { name: 'Assignments', href: '/assignments', icon: FileText }
     ];
 
     if (user?.role === 'admin') {
