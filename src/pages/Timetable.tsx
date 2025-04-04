@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check, ZoomIn, ZoomOut } from 'lucide-react';
+import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { supabase } from '../lib/supabase';
@@ -11,8 +11,8 @@ interface Class {
   id: string;
   subject: string;
   day: string;
-  startTime: string;
-  endTime: string;
+  start_time: string;
+  end_time: string;
   room: string;
   teacher: string;
   qrCode?: string;
@@ -52,14 +52,15 @@ export default function Timetable() {
   const [editingClass, setEditingClass] = useState<Class | null>(null);
   const [qrTimer, setQrTimer] = useState<number>(30);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [formError, setFormError] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   const [newClass, setNewClass] = useState<Omit<Class, 'id'>>({
     subject: '',
     day: 'Monday',
-    startTime: '09:00',
-    endTime: '10:00',
+    start_time: '09:00',
+    end_time: '10:00',
     room: '',
     teacher: ''
   });
@@ -287,11 +288,12 @@ export default function Timetable() {
     setNewClass({
       subject: '',
       day: 'Monday',
-      startTime: '09:00',
-      endTime: '10:00',
+      start_time: '09:00',
+      end_time: '10:00',
       room: '',
       teacher: ''
     });
+    setFormError(null);
     setShowClassForm(true);
   };
 
@@ -300,11 +302,12 @@ export default function Timetable() {
     setNewClass({
       subject: classItem.subject,
       day: classItem.day,
-      startTime: classItem.startTime,
-      endTime: classItem.endTime,
+      start_time: classItem.start_time,
+      end_time: classItem.end_time,
       room: classItem.room,
       teacher: classItem.teacher
     });
+    setFormError(null);
     setShowClassForm(true);
   };
 
@@ -326,8 +329,34 @@ export default function Timetable() {
     }
   };
 
+  const validateClassForm = () => {
+    if (!newClass.subject.trim()) {
+      setFormError('Subject is required');
+      return false;
+    }
+    if (!newClass.room.trim()) {
+      setFormError('Room is required');
+      return false;
+    }
+    if (!newClass.teacher.trim()) {
+      setFormError('Teacher is required');
+      return false;
+    }
+    if (new Date(`2000-01-01T${newClass.end_time}`) <= new Date(`2000-01-01T${newClass.start_time}`)) {
+      setFormError('End time must be after start time');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmitClass = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    if (!validateClassForm()) {
+      return;
+    }
+
     try {
       if (editingClass) {
         const { error } = await supabase
@@ -335,8 +364,8 @@ export default function Timetable() {
           .update({
             subject: newClass.subject,
             day: newClass.day,
-            start_time: newClass.startTime,
-            end_time: newClass.endTime,
+            start_time: newClass.start_time,
+            end_time: newClass.end_time,
             room: newClass.room,
             teacher: newClass.teacher
           })
@@ -357,8 +386,8 @@ export default function Timetable() {
           .insert({
             subject: newClass.subject,
             day: newClass.day,
-            start_time: newClass.startTime,
-            end_time: newClass.endTime,
+            start_time: newClass.start_time,
+            end_time: newClass.end_time,
             room: newClass.room,
             teacher: newClass.teacher
           })
@@ -372,7 +401,7 @@ export default function Timetable() {
       setShowClassForm(false);
     } catch (error) {
       console.error('Error saving class:', error);
-      alert('Failed to save class. Please try again.');
+      setFormError('Failed to save class. Please try again.');
     }
   };
 
@@ -431,7 +460,7 @@ export default function Timetable() {
                   const classForSlot = classes.find(
                     cls =>
                       cls.day === day &&
-                      `${cls.startTime}-${cls.endTime}` === timeSlot
+                      `${cls.start_time}-${cls.end_time}` === timeSlot
                   );
 
                   return (
@@ -721,12 +750,23 @@ export default function Timetable() {
                 {editingClass ? 'Edit Class' : 'Add New Class'}
               </h3>
               <button
-                onClick={() => setShowClassForm(false)}
+                onClick={() => {
+                  setShowClassForm(false);
+                  setFormError(null);
+                }}
                 className="text-gray-400 hover:text-gray-500"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {formError && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {formError}
+              </div>
+            )}
+
             <form onSubmit={handleSubmitClass} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -775,8 +815,8 @@ export default function Timetable() {
                   </label>
                   <input
                     type="time"
-                    value={newClass.startTime}
-                    onChange={(e) => setNewClass({ ...newClass, startTime: e.target.value })}
+                    value={newClass.start_time}
+                    onChange={(e) => setNewClass({ ...newClass, start_time: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
                   />
@@ -787,8 +827,8 @@ export default function Timetable() {
                   </label>
                   <input
                     type="time"
-                    value={newClass.endTime}
-                    onChange={(e) => setNewClass({ ...newClass, endTime: e.target.value })}
+                    value={newClass.end_time}
+                    onChange={(e) => setNewClass({ ...newClass, end_time: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
                   />
@@ -809,7 +849,10 @@ export default function Timetable() {
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setShowClassForm(false)}
+                  onClick={() => {
+                    setShowClassForm(false);
+                    setFormError(null);
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
