@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTimetableStore } from '../store/timetableStore';
 
 interface Class {
   id: string;
@@ -15,22 +16,6 @@ interface Class {
   room: string;
   teacher: string;
   qrCode?: string;
-}
-
-interface Attendance {
-  id: string;
-  classId: string;
-  studentId: string;
-  studentEmail: string;
-  date: string;
-  status: 'present' | 'absent';
-  markedBy?: string;
-  timestamp: string;
-}
-
-interface Student {
-  id: string;
-  email: string;
 }
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -44,37 +29,20 @@ const timeSlots = [
   '16:00-17:00'
 ];
 
-// Mock students data
-const mockStudents: Student[] = [
-  { id: '2', email: 'student@campus.edu' },
-  { id: '3', email: 'student2@campus.edu' },
-  { id: '4', email: 'student3@campus.edu' },
-];
-
-function Timetable() {
+export default function Timetable() {
   const { user } = useAuthStore();
-  const [classes, setClasses] = useState<Class[]>([
-    {
-      id: '1',
-      subject: 'Mathematics',
-      day: 'Monday',
-      startTime: '09:00',
-      endTime: '10:00',
-      room: 'Room 101',
-      teacher: 'Dr. Smith'
-    },
-    {
-      id: '2',
-      subject: 'Physics',
-      day: 'Monday',
-      startTime: '11:00',
-      endTime: '12:00',
-      room: 'Room 102',
-      teacher: 'Dr. Johnson'
-    }
-  ]);
+  const { 
+    students, 
+    attendanceRecords, 
+    loading, 
+    error,
+    fetchStudents,
+    fetchAttendance,
+    markAttendance,
+    generateQRCode: generateQRCodeStore
+  } = useTimetableStore();
 
-  const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -97,9 +65,27 @@ function Timetable() {
   });
 
   useEffect(() => {
+    fetchClasses();
+    fetchStudents();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('class_schedules')
+        .select('*')
+        .order('start_time');
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
+
+  useEffect(() => {
     if (showQR && selectedClass?.qrCode) {
       generateQRCodeUrl(selectedClass.qrCode);
-      // Start 30-second timer
       setQrTimer(30);
       timerRef.current = setInterval(() => {
         setQrTimer(prev => {
@@ -124,7 +110,6 @@ function Timetable() {
     let scanner: Html5QrcodeScanner | null = null;
 
     if (showScanner) {
-      // Initialize scanner with better default settings
       scanner = new Html5QrcodeScanner(
         'qr-reader',
         {
@@ -134,23 +119,20 @@ function Timetable() {
           showTorchButtonIfSupported: true,
           showZoomSliderIfSupported: true,
           defaultZoomValueIfSupported: 2,
-          // Force rear camera
           videoConstraints: {
             facingMode: { exact: "environment" }
           }
         },
-        /* verbose= */ false
+        false
       );
 
       scannerRef.current = scanner;
 
-      // Start scanning immediately
       scanner.render(
         (decodedText) => {
           handleQRScanned(decodedText);
         },
         (errorMessage) => {
-          // Ignore errors during normal scanning
           if (!errorMessage.includes('NotFound')) {
             console.error('QR Scan error:', errorMessage);
           }
@@ -174,32 +156,15 @@ function Timetable() {
     }
   };
 
-  const generateQRCode = (classId: string) => {
-    const timestamp = new Date().getTime();
-    const uniqueCode = `${classId}-${timestamp}-${Math.random().toString(36).substring(7)}`;
-    setClasses(prevClasses =>
-      prevClasses.map(cls =>
-        cls.id === classId ? { ...cls, qrCode: uniqueCode } : cls
-      )
-    );
-    return uniqueCode;
-  };
-
-  const handleGenerateQR = (classItem: Class) => {
-    setSelectedClass(classItem);
-    const qrCode = generateQRCode(classItem.id);
-    generateQRCodeUrl(qrCode);
-    setShowQR(true);
-  };
-
-  const handleViewAttendance = (classItem: Class) => {
-    setSelectedClass(classItem);
-    setShowAttendance(true);
-  };
-
-  const handleScanQR = (classItem: Class) => {
-    setSelectedClass(classItem);
-    setShowScanner(true);
+  const handleGenerateQR = async (classItem: Class) => {
+    try {
+      setSelectedClass(classItem);
+      const qrCode = await generateQRCodeStore(classItem.id);
+      await generateQRCodeUrl(qrCode);
+      setShowQR(true);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+    }
   };
 
   const handleQRScanned = async (data: string) => {
@@ -236,21 +201,13 @@ function Timetable() {
       }
 
       // Mark attendance
-      const { error: attendanceError } = await supabase
-        .from('class_attendance')
-        .upsert({
-          student_id: studentData.id,
-          class_id: selectedClass.id,
-          status: 'present',
-          marked_by: 'QR Scan',
-          date: new Date().toISOString().split('T')[0]
-        }, {
-          onConflict: 'student_id,class_id,date'
-        });
-
-      if (attendanceError) {
-        throw attendanceError;
-      }
+      await markAttendance({
+        studentId: studentData.id,
+        classId: selectedClass.id,
+        status: 'present',
+        markedVia: 'qr',
+        qrCode: data
+      });
 
       alert('Attendance marked successfully!');
       setShowScanner(false);
@@ -259,6 +216,30 @@ function Timetable() {
       alert('Failed to mark attendance. Please try again.');
       setShowScanner(false);
     }
+  };
+
+  const handleManualAttendance = async (studentId: string, present: boolean) => {
+    if (!selectedClass || !user) return;
+
+    try {
+      await markAttendance({
+        studentId,
+        classId: selectedClass.id,
+        status: present ? 'present' : 'absent',
+        markedVia: 'manual'
+      });
+
+      alert(`Attendance ${present ? 'marked' : 'unmarked'} successfully!`);
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      alert('Failed to mark attendance. Please try again.');
+    }
+  };
+
+  const handleViewAttendance = async (classItem: Class) => {
+    setSelectedClass(classItem);
+    await fetchAttendance(classItem.id);
+    setShowAttendance(true);
   };
 
   const handleZoomIn = () => {
@@ -301,33 +282,6 @@ function Timetable() {
     }
   };
 
-  const handleManualAttendance = async (studentId: string, studentEmail: string, present: boolean) => {
-    if (!selectedClass || !user) return;
-
-    try {
-      const { error: attendanceError } = await supabase
-        .from('class_attendance')
-        .upsert({
-          student_id: studentId,
-          class_id: selectedClass.id,
-          status: present ? 'present' : 'absent',
-          marked_by: user.email,
-          date: new Date().toISOString().split('T')[0]
-        }, {
-          onConflict: 'student_id,class_id,date'
-        });
-
-      if (attendanceError) {
-        throw attendanceError;
-      }
-
-      alert(`Attendance ${present ? 'marked' : 'unmarked'} successfully!`);
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      alert('Failed to mark attendance. Please try again.');
-    }
-  };
-
   const handleAddClass = () => {
     setEditingClass(null);
     setNewClass({
@@ -354,40 +308,72 @@ function Timetable() {
     setShowClassForm(true);
   };
 
-  const handleDeleteClass = (classId: string) => {
+  const handleDeleteClass = async (classId: string) => {
     if (confirm('Are you sure you want to delete this class?')) {
-      setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
-      setAttendanceRecords(prev => prev.filter(record => record.classId !== classId));
+      try {
+        const { error } = await supabase
+          .from('class_schedules')
+          .delete()
+          .eq('id', classId);
+
+        if (error) throw error;
+
+        setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+      } catch (error) {
+        console.error('Error deleting class:', error);
+        alert('Failed to delete class. Please try again.');
+      }
     }
   };
 
-  const handleSubmitClass = (e: React.FormEvent) => {
+  const handleSubmitClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingClass) {
-      setClasses(prevClasses =>
-        prevClasses.map(cls =>
-          cls.id === editingClass.id
-            ? { ...newClass, id: editingClass.id }
-            : cls
-        )
-      );
-    } else {
-      const newClassItem = {
-        ...newClass,
-        id: Math.random().toString(),
-      };
-      setClasses(prev => [...prev, newClassItem]);
-    }
-    setShowClassForm(false);
-  };
+    try {
+      if (editingClass) {
+        const { error } = await supabase
+          .from('class_schedules')
+          .update({
+            subject: newClass.subject,
+            day: newClass.day,
+            start_time: newClass.startTime,
+            end_time: newClass.endTime,
+            room: newClass.room,
+            teacher: newClass.teacher
+          })
+          .eq('id', editingClass.id);
 
-  const getAttendanceForClass = (classId: string) => {
-    return attendanceRecords.find(
-      record =>
-        record.classId === classId &&
-        record.studentId === user?.id &&
-        record.date === new Date().toISOString().split('T')[0]
-    );
+        if (error) throw error;
+
+        setClasses(prevClasses =>
+          prevClasses.map(cls =>
+            cls.id === editingClass.id
+              ? { ...newClass, id: editingClass.id }
+              : cls
+          )
+        );
+      } else {
+        const { data, error } = await supabase
+          .from('class_schedules')
+          .insert({
+            subject: newClass.subject,
+            day: newClass.day,
+            start_time: newClass.startTime,
+            end_time: newClass.endTime,
+            room: newClass.room,
+            teacher: newClass.teacher
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setClasses(prev => [...prev, data as Class]);
+      }
+      setShowClassForm(false);
+    } catch (error) {
+      console.error('Error saving class:', error);
+      alert('Failed to save class. Please try again.');
+    }
   };
 
   const getAttendanceStats = (classId: string) => {
@@ -399,7 +385,7 @@ function Timetable() {
 
     return {
       present: todayRecords.filter(record => record.status === 'present').length,
-      total: mockStudents.length,
+      total: students.length,
     };
   };
 
@@ -498,7 +484,10 @@ function Timetable() {
                               </>
                             ) : (
                               <button
-                                onClick={() => handleScanQR(classForSlot)}
+                                onClick={() => {
+                                  setSelectedClass(classForSlot);
+                                  setShowScanner(true);
+                                }}
                                 className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
                               >
                                 <QrCode className="h-4 w-4 mr-1" />
@@ -512,12 +501,6 @@ function Timetable() {
                                 const stats = getAttendanceStats(classForSlot.id);
                                 return `${stats.present}/${stats.total} present`;
                               })()}
-                            </div>
-                          )}
-                          {user?.role === 'student' && getAttendanceForClass(classForSlot.id) && (
-                            <div className="mt-2 flex items-center text-sm text-green-600">
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Present
                             </div>
                           )}
                         </div>
@@ -667,7 +650,7 @@ function Timetable() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {mockStudents.map(student => {
+                    {students.map(student => {
                       const attendance = attendanceRecords.find(
                         record => 
                           record.classId === selectedClass.id && 
@@ -697,13 +680,13 @@ function Timetable() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => handleManualAttendance(student.id, student.email, true)}
+                                onClick={() => handleManualAttendance(student.id, true)}
                                 className="text-green-600 hover:text-green-900 dark:hover:text-green-400"
                               >
                                 <Check className="h-5 w-5" />
                               </button>
                               <button
-                                onClick={() => handleManualAttendance(student.id, student.email, false)}
+                                onClick={() => handleManualAttendance(student.id, false)}
                                 className="text-red-600 hover:text-red-900 dark:hover:text-red-400"
                               >
                                 <X className="h-5 w-5" />
@@ -845,5 +828,3 @@ function Timetable() {
     </div>
   );
 }
-
-export default Timetable;

@@ -1,51 +1,40 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
-interface Class {
-  id: string;
-  subject: string;
-  day: string;
-  startTime: string;
-  endTime: string;
-  room: string;
-  teacherId: string;
-  teacher?: {
-    full_name: string;
-  };
-}
-
 interface Student {
   id: string;
+  email: string;
   full_name: string;
   roll_number: string;
-  email: string;
 }
 
 interface AttendanceRecord {
   id: string;
-  studentId: string;
-  classId: string;
+  student_id: string;
+  class_id: string;
   date: string;
   status: 'present' | 'absent';
-  markedBy?: string;
-  markedVia: 'qr' | 'manual';
-  qrCode?: string;
-  qrExpiry?: string;
+  marked_by?: string;
+  marked_via: 'qr' | 'manual';
+  qr_code?: string;
+  qr_expiry?: string;
+  student?: {
+    full_name: string;
+    roll_number: string;
+  };
 }
 
 interface TimetableState {
-  classes: Class[];
   students: Student[];
   attendanceRecords: AttendanceRecord[];
   loading: boolean;
   error: string | null;
-  fetchClasses: () => Promise<void>;
   fetchStudents: () => Promise<void>;
   fetchAttendance: (classId: string, date?: string) => Promise<void>;
   markAttendance: (data: {
     studentId: string;
     classId: string;
-    status:  'present' | 'absent';
+    status: 'present' | 'absent';
     markedVia: 'qr' | 'manual';
     qrCode?: string;
   }) => Promise<void>;
@@ -54,7 +43,6 @@ interface TimetableState {
 }
 
 export const useTimetableStore = create<TimetableState>((set, get) => ({
-  classes: [],
   students: [],
   attendanceRecords: [],
   loading: false,
@@ -62,34 +50,12 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  fetchClasses: async () => {
-    try {
-      set({ loading: true, error: null });
-      const { data, error } = await supabase
-        .from('class_schedules')
-        .select(`
-          *,
-          teacher:teachers(full_name)
-        `)
-        .order('start_time');
-
-      if (error) throw error;
-      set({ classes: data || [] });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch classes';
-      set({ error: errorMessage });
-      throw error;
-    } finally {
-      set({ loading: false });
-    }
-  },
-
   fetchStudents: async () => {
     try {
       set({ loading: true, error: null });
       const { data, error } = await supabase
         .from('students')
-        .select('id, full_name, roll_number, email')
+        .select('id, email, full_name, roll_number')
         .order('roll_number');
 
       if (error) throw error;
@@ -107,10 +73,13 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       const { data, error } = await supabase
-        .rpc('get_class_attendance_report', {
-          p_class_id: classId,
-          p_date: date
-        });
+        .from('attendance_records')
+        .select(`
+          *,
+          student:students(full_name, roll_number)
+        `)
+        .eq('class_id', classId)
+        .eq('date', date);
 
       if (error) throw error;
       set({ attendanceRecords: data || [] });
@@ -126,19 +95,28 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
   markAttendance: async ({ studentId, classId, status, markedVia, qrCode }) => {
     try {
       set({ loading: true, error: null });
-      const { data: teacher } = await supabase
+
+      // Get teacher ID if available
+      const { data: teacherData } = await supabase
         .from('teachers')
         .select('id')
         .single();
 
+      const attendanceData = {
+        student_id: studentId,
+        class_id: classId,
+        date: new Date().toISOString().split('T')[0],
+        status,
+        marked_via: markedVia,
+        marked_by: teacherData?.id,
+        qr_code: qrCode,
+        qr_expiry: qrCode ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null
+      };
+
       const { error } = await supabase
-        .rpc('mark_attendance', {
-          p_student_id: studentId,
-          p_class_id: classId,
-          p_status: status,
-          p_marked_by: teacher?.id,
-          p_marked_via: markedVia,
-          p_qr_code: qrCode
+        .from('attendance_records')
+        .upsert(attendanceData, {
+          onConflict: 'student_id,class_id,date'
         });
 
       if (error) throw error;
@@ -163,7 +141,7 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
         .from('attendance_records')
         .update({
           qr_code: qrCode,
-          qr_expiry: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes expiry
+          qr_expiry: new Date(Date.now() + 5 * 60 * 1000).toISOString()
         })
         .eq('class_id', classId);
 
