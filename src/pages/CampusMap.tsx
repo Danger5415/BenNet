@@ -14,8 +14,8 @@ const locations: Location[] = [
   { id: '1', name: 'Main Library', type: 'library', position: [28.450362, 77.584115] },
   { id: '2', name: 'Maggi Hotspot', type: 'cafe', position: [28.450670058390724, 77.5851124293879] },
   { id: '3', name: 'Southern Stories', type: 'cafe', position: [28.450467246789973, 77.58517143798156] },
-  { id: '4', name: 'Main Gate', type: 'entrance', position: [28.448542, 77.582418] }
-  { id: '5', name: 'N-BLock', type: 'academic', position: [28.448641, 77.5827935] }
+  { id: '4', name: 'Main Gate', type: 'entrance', position: [28.448542, 77.582418] },
+  { id: '5', name: 'N-BLock', type: 'academic', position: [28.449008946256676, 77.58348015472107] }
 ];
 
 const STREET_VIEW_LOCATION = { lat: 28.44954279827964, lng: 77.58377668948151 };
