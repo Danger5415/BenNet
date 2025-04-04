@@ -62,10 +62,16 @@ export default function Assignments() {
   } = useAssignmentStore();
 
   const [showForm, setShowForm] = useState(false);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<string | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [submissionFile, setSubmissionFile] = useState<{
+    url: string;
+    name: string;
+    size: number;
+  } | null>(null);
 
   const [newAssignment, setNewAssignment] = useState({
     title: '',
@@ -83,8 +89,8 @@ export default function Assignments() {
   }, []);
 
   useEffect(() => {
-    if (selectedAssignment) {
-      fetchSubmissions(selectedAssignment);
+    if (selectedAssignment && (user?.role === 'admin' || user?.role === 'teacher')) {
+      fetchSubmissions(selectedAssignment.id);
     }
   }, [selectedAssignment]);
 
@@ -118,12 +124,40 @@ export default function Assignments() {
     }
   };
 
+  const handleSubmitAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignment || !submissionFile) return;
+
+    try {
+      await submitAssignment({
+        assignment_id: selectedAssignment.id,
+        student_id: user?.id || '',
+        file_url: submissionFile.url,
+        file_name: submissionFile.name,
+        file_size: submissionFile.size
+      });
+      setShowSubmitForm(false);
+      setSubmissionFile(null);
+      alert('Assignment submitted successfully!');
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to submit assignment');
+    }
+  };
+
   const handleFileUpload = async (url: string) => {
-    setNewAssignment({
-      ...newAssignment,
-      file_url: url,
-      file_name: url.split('/').pop() || ''
-    });
+    if (showForm) {
+      setNewAssignment({
+        ...newAssignment,
+        file_url: url,
+        file_name: url.split('/').pop() || ''
+      });
+    } else {
+      setSubmissionFile({
+        url,
+        name: url.split('/').pop() || '',
+        size: 0 // You might want to get the actual file size
+      });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -151,6 +185,7 @@ export default function Assignments() {
   );
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
+  const isStudent = user?.role === 'student';
 
   return (
     <div className="space-y-6">
@@ -205,7 +240,7 @@ export default function Assignments() {
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   {assignment.title}
                 </h3>
-                {isTeacher && (
+                {isTeacher && assignment.teacher_id === user?.id && (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => {
@@ -255,15 +290,30 @@ export default function Assignments() {
                     className="flex items-center text-blue-500 hover:text-blue-600"
                   >
                     <Download className="h-4 w-4 mr-1" />
-                    Download
+                    Download Instructions
                   </a>
                 )}
-                <button
-                  onClick={() => setSelectedAssignment(assignment.id)}
-                  className="flex items-center text-blue-500 hover:text-blue-600"
-                >
-                  View Submissions
-                </button>
+                {isStudent ? (
+                  <button
+                    onClick={() => {
+                      setSelectedAssignment(assignment);
+                      setShowSubmitForm(true);
+                    }}
+                    className="flex items-center px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600"
+                  >
+                    <Upload className="h-4 w-4 mr-1" />
+                    Submit Assignment
+                  </button>
+                ) : (
+                  isTeacher && assignment.teacher_id === user?.id && (
+                    <button
+                      onClick={() => setSelectedAssignment(assignment)}
+                      className="flex items-center text-blue-500 hover:text-blue-600"
+                    >
+                      View Submissions
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </motion.div>
@@ -366,7 +416,7 @@ export default function Assignments() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Assignment File
+                  Assignment Instructions File
                 </label>
                 <ImageUpload
                   onImageUpload={handleFileUpload}
@@ -411,13 +461,77 @@ export default function Assignments() {
         </div>
       )}
 
-      {/* Submissions Modal */}
-      {selectedAssignment && (
+      {/* Submit Assignment Modal */}
+      {showSubmitForm && selectedAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Submit Assignment: {selectedAssignment.title}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowSubmitForm(false);
+                  setSubmissionFile(null);
+                  setFormError(null);
+                }}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitAssignment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Upload Your Work
+                </label>
+                <ImageUpload
+                  onImageUpload={handleFileUpload}
+                  existingImage={submissionFile?.url}
+                  bucket="assignment-submissions"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSubmitForm(false);
+                    setSubmissionFile(null);
+                    setFormError(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  disabled={!submissionFile}
+                >
+                  Submit Assignment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Submissions Modal */}
+      {selectedAssignment && isTeacher && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                Submissions
+                Submissions for: {selectedAssignment.title}
               </h3>
               <button
                 onClick={() => setSelectedAssignment(null)}
@@ -488,20 +602,18 @@ export default function Assignments() {
                               <Download className="h-5 w-5" />
                             </a>
                           )}
-                          {isTeacher && (
-                            <button
-                              onClick={() => {
-                                const grade = prompt('Enter grade (0-100):', submission.grade?.toString() || '');
-                                const feedback = prompt('Enter feedback:', submission.feedback || '');
-                                if (grade !== null && feedback !== null) {
-                                  handleGradeSubmission(submission.id, parseInt(grade), feedback);
-                                }
-                              }}
-                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                            >
-                              <CheckCircle className="h-5 w-5" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              const grade = prompt('Enter grade (0-100):', submission.grade?.toString() || '');
+                              const feedback = prompt('Enter feedback:', submission.feedback || '');
+                              if (grade !== null && feedback !== null) {
+                                handleGradeSubmission(submission.id, parseInt(grade), feedback);
+                              }
+                            }}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
