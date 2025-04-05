@@ -257,7 +257,7 @@ export default function Library() {
             <h2 className="text-lg font-medium mb-4 dark:text-white">Quick Links</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <a
-                href="https://library.bennett.edu.in/"
+                href="https://www.bennett.edu.in/wp-content/uploads/2024/06/Academic-Calender-2024-25.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center p-4 border dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
