@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, Mic, MicOff, PhoneOff, Video, VideoOff, Users, MessageSquare, ZoomIn, ZoomOut, Settings, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import SimplePeer from 'simple-peer';
+import { v4 as uuidv4 } from 'uuid';
 
 interface VideoChatProps {
   sessionId: string;
@@ -16,6 +18,7 @@ interface Participant {
   isSpeaking: boolean;
   isMuted: boolean;
   isVideoOff: boolean;
+  peer?: SimplePeer.Instance;
 }
 
 export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatProps) {
@@ -40,7 +43,7 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
   });
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const peers = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const channel = useRef<any>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const audioAnalysers = useRef<Map<string, AnalyserNode>>(new Map());
@@ -71,12 +74,12 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         videoInput: videoInputs
       });
 
-      // Set default devices
       if (audioInputs.length) setDeviceSettings(prev => ({ ...prev, audioInput: audioInputs[0].deviceId }));
       if (audioOutputs.length) setDeviceSettings(prev => ({ ...prev, audioOutput: audioOutputs[0].deviceId }));
       if (videoInputs.length) setDeviceSettings(prev => ({ ...prev, videoInput: videoInputs[0].deviceId }));
     } catch (error) {
       console.error('Error enumerating devices:', error);
+      setError('Failed to access media devices');
     }
   };
 
@@ -109,7 +112,7 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         const newParticipants = new Map(prev);
         newParticipants.set(participantId, {
           ...participant,
-          isSpeaking: audioLevel > 30 // Adjust threshold as needed
+          isSpeaking: audioLevel > 30
         });
         return newParticipants;
       });
@@ -136,7 +139,8 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         audio: { 
           deviceId: deviceSettings.audioInput || undefined,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         }
       });
 
@@ -174,133 +178,127 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
       });
   };
 
-  const createPeerConnection = (peerId: string) => {
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+  const createPeer = (initiator: boolean, targetId: string) => {
+    if (!localStream) return null;
+
+    const peer = new SimplePeer({
+      initiator,
+      stream: localStream,
+      trickle: true,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      }
     });
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        channel.current.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            type: 'candidate',
-            candidate: event.candidate,
-            from: sessionId,
-            to: peerId
-          }
-        });
-      }
-    };
+    peer.on('signal', data => {
+      channel.current.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: {
+          signal: data,
+          from: sessionId,
+          to: targetId
+        }
+      });
+    });
 
-    pc.ontrack = (event) => {
-      const stream = event.streams[0];
+    peer.on('stream', stream => {
       setParticipants(prev => {
         const next = new Map(prev);
-        next.set(peerId, {
-          id: peerId,
+        next.set(targetId, {
+          id: targetId,
           stream,
           name: `Participant ${next.size + 1}`,
           isSpeaking: false,
           isMuted: false,
-          isVideoOff: false
+          isVideoOff: false,
+          peer
         });
         return next;
       });
 
-      setupAudioAnalyser(stream, peerId);
-    };
+      setupAudioAnalyser(stream, targetId);
+    });
 
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        pc.restartIce();
-      }
-    };
+    peer.on('error', err => {
+      console.error('Peer error:', err);
+      peer.destroy();
+      handlePeerDisconnect(targetId);
+    });
 
-    peerConnections.current.set(peerId, pc);
-    return pc;
+    peer.on('close', () => {
+      handlePeerDisconnect(targetId);
+    });
+
+    return peer;
+  };
+
+  const handlePeerDisconnect = (peerId: string) => {
+    peers.current.delete(peerId);
+    setParticipants(prev => {
+      const next = new Map(prev);
+      next.delete(peerId);
+      return next;
+    });
   };
 
   const handleNewParticipants = async (newPresences: any[]) => {
     for (const presence of newPresences) {
       if (presence.user !== sessionId) {
-        const pc = createPeerConnection(presence.user);
-        if (localStream) {
-          localStream.getTracks().forEach(track => {
-            pc.addTrack(track, localStream);
-          });
+        const peer = createPeer(true, presence.user);
+        if (peer) {
+          peers.current.set(presence.user, peer);
         }
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        channel.current.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            type: 'offer',
-            sdp: pc.localDescription,
-            from: sessionId,
-            to: presence.user
-          }
-        });
       }
     }
   };
 
   const handleParticipantLeft = (leftPresences: any[]) => {
     for (const presence of leftPresences) {
-      const pc = peerConnections.current.get(presence.user);
-      if (pc) {
-        pc.close();
-        peerConnections.current.delete(presence.user);
+      const peer = peers.current.get(presence.user);
+      if (peer) {
+        peer.destroy();
+        handlePeerDisconnect(presence.user);
       }
-      setParticipants(prev => {
-        const next = new Map(prev);
-        next.delete(presence.user);
-        return next;
-      });
     }
   };
 
   const handleSignaling = async (payload: any) => {
     if (payload.to !== sessionId) return;
 
-    const pc = peerConnections.current.get(payload.from) || createPeerConnection(payload.from);
+    let peer = peers.current.get(payload.from);
 
-    try {
-      if (payload.type === 'offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        channel.current.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            type: 'answer',
-            sdp: pc.localDescription,
-            from: sessionId,
-            to: payload.from
-          }
-        });
-      } else if (payload.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      } else if (payload.type === 'candidate') {
-        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    if (!peer) {
+      peer = createPeer(false, payload.from);
+      if (peer) {
+        peers.current.set(payload.from, peer);
       }
-    } catch (error) {
-      console.error('Error handling signaling:', error);
+    }
+
+    if (peer) {
+      try {
+        peer.signal(payload.signal);
+      } catch (error) {
+        console.error('Error handling signal:', error);
+      }
     }
   };
 
   const cleanupConnections = () => {
     if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+      localStream.getTracks().forEach(track => {
+        track.stop();
+      });
     }
-    peerConnections.current.forEach(pc => pc.close());
-    peerConnections.current.clear();
+
+    peers.current.forEach(peer => {
+      peer.destroy();
+    });
+    peers.current.clear();
+
     if (channel.current) {
       channel.current.unsubscribe();
     }
@@ -350,27 +348,44 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
     try {
       if (!isScreenSharing) {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true
+          video: true,
+          audio: true
         });
+
         const videoTrack = screenStream.getVideoTracks()[0];
-        
-        if (localStream && videoTrack) {
-          const sender = localStream.getVideoTracks()[0];
-          if (sender) {
-            sender.stop();
-            localStream.removeTrack(sender);
+        const audioTrack = screenStream.getAudioTracks()[0];
+
+        if (localStream) {
+          // Replace video track
+          const oldVideoTrack = localStream.getVideoTracks()[0];
+          if (oldVideoTrack) {
+            oldVideoTrack.stop();
+            localStream.removeTrack(oldVideoTrack);
           }
           localStream.addTrack(videoTrack);
+
+          // Add screen share audio if available
+          if (audioTrack) {
+            localStream.addTrack(audioTrack);
+          }
+
+          // Update local video
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = localStream;
           }
 
-          // Update all peer connections with the new track
-          peerConnections.current.forEach(pc => {
-            const senders = pc.getSenders();
-            const videoSender = senders.find(sender => sender.track?.kind === 'video');
+          // Update all peer connections
+          peers.current.forEach(peer => {
+            const senders = peer._senders || [];
+            const videoSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'video');
             if (videoSender) {
               videoSender.replaceTrack(videoTrack);
+            }
+            if (audioTrack) {
+              const audioSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'audio');
+              if (audioSender) {
+                audioSender.replaceTrack(audioTrack);
+              }
             }
           });
 
@@ -391,28 +406,41 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
   const stopScreenSharing = async () => {
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { deviceId: deviceSettings.videoInput || undefined }
-      });
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      
-      if (localStream && newVideoTrack) {
-        const sender = localStream.getVideoTracks()[0];
-        if (sender) {
-          sender.stop();
-          localStream.removeTrack(sender);
+        video: { deviceId: deviceSettings.videoInput || undefined },
+        audio: { 
+          deviceId: deviceSettings.audioInput || undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
         }
-        localStream.addTrack(newVideoTrack);
+      });
+
+      if (localStream) {
+        // Stop all existing tracks
+        localStream.getTracks().forEach(track => {
+          track.stop();
+          localStream.removeTrack(track);
+        });
+
+        // Add new tracks
+        newStream.getTracks().forEach(track => {
+          localStream.addTrack(track);
+        });
+
+        // Update local video
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = localStream;
         }
 
-        // Update all peer connections with the new track
-        peerConnections.current.forEach(pc => {
-          const senders = pc.getSenders();
-          const videoSender = senders.find(sender => sender.track?.kind === 'video');
-          if (videoSender) {
-            videoSender.replaceTrack(newVideoTrack);
-          }
+        // Update all peer connections
+        peers.current.forEach(peer => {
+          const senders = peer._senders || [];
+          newStream.getTracks().forEach(track => {
+            const sender = senders.find((s: RTCRtpSender) => s.track?.kind === track.kind);
+            if (sender) {
+              sender.replaceTrack(track);
+            }
+          });
         });
       }
       setIsScreenSharing(false);
@@ -432,7 +460,12 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
       }
 
       const constraints: MediaStreamConstraints = {
-        audio: kind === 'audioinput' ? { deviceId: { exact: deviceId } } : undefined,
+        audio: kind === 'audioinput' ? { 
+          deviceId: { exact: deviceId },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } : undefined,
         video: kind === 'videoinput' ? { deviceId: { exact: deviceId } } : undefined
       };
 
@@ -451,9 +484,9 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         localStream.addTrack(track);
 
         // Update peer connections
-        peerConnections.current.forEach(pc => {
-          const senders = pc.getSenders();
-          const sender = senders.find(s => s.track?.kind === track.kind);
+        peers.current.forEach(peer => {
+          const senders = peer._senders || [];
+          const sender = senders.find((s: RTCRtpSender) => s.track?.kind === track.kind);
           if (sender) {
             sender.replaceTrack(track);
           }
@@ -474,22 +507,6 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
     }
   };
 
-  const getParticipantStyle = (participant: Participant) => {
-    return {
-      border: participant.isSpeaking ? '2px solid #22c55e' : 'none',
-      transform: `scale(${participant.isSpeaking ? 1.02 : 1})`,
-      transition: 'all 0.3s ease-in-out'
-    };
-  };
-
-  const getGridColumns = () => {
-    const totalParticipants = participants.size + 1; // Including local participant
-    if (totalParticipants <= 1) return 'grid-cols-1';
-    if (totalParticipants <= 4) return 'grid-cols-2';
-    if (totalParticipants <= 9) return 'grid-cols-3';
-    return 'grid-cols-4';
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="w-full h-full p-4 flex flex-col">
@@ -506,13 +523,17 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
         )}
 
         {/* Video Grid */}
-        <div className={`flex-1 grid gap-4 p-4 ${getGridColumns()}`}>
+        <div className={`flex-1 grid gap-4 p-4 ${
+          participants.size <= 1 ? 'grid-cols-1' :
+          participants.size <= 4 ? 'grid-cols-2' :
+          participants.size <= 9 ? 'grid-cols-3' :
+          'grid-cols-4'
+        }`}>
           {/* Local Video */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden"
-            style={getParticipantStyle({ id: 'local', stream: localStream!, name: 'You', isSpeaking: false, isMuted: !isMicOn, isVideoOff: !isCameraOn })}
           >
             <video
               ref={localVideoRef}
@@ -541,7 +562,6 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden"
-                style={getParticipantStyle(participant)}
               >
                 <video
                   autoPlay
@@ -635,7 +655,10 @@ export default function VideoChat({ sessionId, onClose, onOpenChat }: VideoChatP
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={onClose}
+                onClick={() => {
+                  cleanupConnections();
+                  onClose();
+                }}
                 className="p-3 rounded-full bg-red-500 hover:bg-red-600"
               >
                 <PhoneOff className="h-6 w-6 text-white" />
