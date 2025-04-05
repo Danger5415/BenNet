@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -24,13 +24,10 @@ import {
   Bell,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  MapPin,
+  Loader
 } from 'lucide-react';
-
-// Weather API key
-const WEATHER_API_KEY = '89ac3b0c6b12e272f81248c8e2c11f1c';
-const CAMPUS_LAT = '28.450717';
-const CAMPUS_LONG = '77.584179';
 
 interface WeatherData {
   temp: number;
@@ -38,6 +35,7 @@ interface WeatherData {
   windSpeed: number;
   description: string;
   icon: string;
+  location: string;
 }
 
 interface Notification {
@@ -59,38 +57,101 @@ interface QuickAccessCard {
 }
 
 export default function Dashboard() {
-  const user = useAuthStore((state) => state.user);
+  const { user } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
-    fetchWeather();
+    // Get user's location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          setLocation({ lat: latitude, lon: longitude });
+          await fetchWeather(latitude, longitude);
+        },
+        (err) => {
+          console.error('Error getting location:', err);
+          setError('Unable to get location. Using default location.');
+          // Use default coordinates (New Delhi)
+          fetchWeather(28.449209191001916, 77.58342079646457);
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser');
+      // Use default coordinates
+      fetchWeather(28.449209191001916, 77.58342079646457);
+    }
+
     fetchNotifications();
   }, []);
 
-  const fetchWeather = async () => {
+  const fetchWeather = async (lat: number, lon: number) => {
     try {
+      setLoading(true);
       const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${CAMPUS_LAT}&lon=${CAMPUS_LONG}&appid=${WEATHER_API_KEY}&units=metric`
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=c22edca13bf58ee8f45410521cc7d24e&units=metric`
       );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch weather data');
+      }
+
       const data = await response.json();
       
+      // Get location name using reverse geocoding
+      const locationResponse = await fetch(
+        `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=c22edca13bf58ee8f45410521cc7d24e`
+      );
+      
+      const locationData = await locationResponse.json();
+      const locationName = locationData[0]?.name || 'Unknown Location';
+
       setWeather({
         temp: Math.round(data.main.temp),
         humidity: data.main.humidity,
         windSpeed: data.wind.speed,
         description: data.weather[0].description,
-        icon: data.weather[0].icon
+        icon: data.weather[0].icon,
+        location: locationName
       });
     } catch (error) {
       console.error('Error fetching weather:', error);
+      setError('Failed to fetch weather data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const getWeatherIcon = (iconCode: string) => {
+    const iconMap: { [key: string]: typeof Cloud } = {
+      '01d': Sun,
+      '01n': Moon,
+      '02d': Cloud,
+      '02n': Cloud,
+      '03d': Cloud,
+      '03n': Cloud,
+      '04d': Cloud,
+      '04n': Cloud,
+      '09d': CloudRain,
+      '09n': CloudRain,
+      '10d': CloudRain,
+      '10n': CloudRain,
+      '11d': CloudLightning,
+      '11n': CloudLightning,
+      '13d': CloudSnow,
+      '13n': CloudSnow,
+      '50d': Cloud,
+      '50n': Cloud
+    };
+
+    return iconMap[iconCode] || Cloud;
   };
 
   const fetchNotifications = () => {
@@ -111,13 +172,6 @@ export default function Dashboard() {
         timestamp: new Date()
       }
     ]);
-  };
-
-  const getWeatherIcon = (description: string) => {
-    if (description.includes('rain')) return CloudRain;
-    if (description.includes('snow')) return CloudSnow;
-    if (description.includes('thunder')) return CloudLightning;
-    return Cloud;
   };
 
   const quickAccess: QuickAccessCard[] = [
@@ -290,51 +344,98 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yIDItNCAyLTRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
-          <div className="relative">
-            <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.full_name || user?.email}</h1>
-            <p className="text-primary-100">Access all campus services from your dashboard</p>
-          </div>
+        {/* Welcome Section with Weather Widget */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Welcome Message */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="lg:col-span-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yIDItNCAyLTRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDRjMCAyLTIgNC0yIDRzLTItMi00LTJsLTIgMnYtNGwyIDJzMi0yIDItNGMwLTItMi00LTItNHMtMiAyLTQgMmwtMi0ydjRsMi0yczIgMiAyIDR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
+            <div className="relative">
+              <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.full_name || user?.email}</h1>
+              <p className="text-primary-100">Access all campus services from your dashboard</p>
+            </div>
+          </motion.div>
 
           {/* Weather Widget */}
-          {weather && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="absolute top-8 right-8 bg-white/10 backdrop-blur-md rounded-lg p-4 flex items-center space-x-6"
-            >
-              <div className="flex items-center space-x-4">
-                {React.createElement(getWeatherIcon(weather.description), {
-                  className: "h-10 w-10 text-white"
-                })}
-                <div>
-                  <div className="text-3xl font-bold">{weather.temp}°C</div>
-                  <div className="text-sm capitalize">{weather.description}</div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader className="h-8 w-8 text-primary-500 animate-spin" />
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-full text-red-500">
+                <AlertCircle className="h-6 w-6 mr-2" />
+                <p>{error}</p>
+              </div>
+            ) : weather && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <MapPin className="h-5 w-5 text-gray-400 mr-2" />
+                    <h3 className="text-lg font-medium dark:text-white">{weather.location}</h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 260,
+                      damping: 20
+                    }}
+                    className="relative"
+                  >
+                    {React.createElement(getWeatherIcon(weather.icon), {
+                      className: "h-24 w-24 text-primary-500 animate-float"
+                    })}
+                    <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-4xl font-bold text-gray-900 dark:text-white">
+                      {weather.temp}°C
+                    </div>
+                  </motion.div>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-center text-gray-600 dark:text-gray-300 capitalize mb-4">
+                    {weather.description}
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-center text-blue-500">
+                        <Wind className="h-5 w-5" />
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Wind</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {weather.windSpeed} m/s
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-center text-blue-500">
+                        <Droplets className="h-5 w-5" />
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Humidity</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {weather.humidity}%
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="border-l border-white/20 pl-6 space-y-2">
-                <div className="flex items-center text-sm">
-                  <Wind className="h-4 w-4 mr-2" />
-                  {weather.windSpeed} m/s
-                </div>
-                <div className="flex items-center text-sm">
-                  <Droplets className="h-4 w-4 mr-2" />
-                  {weather.humidity}%
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
+        </div>
 
         {/* Quick Access Grid */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quickAccess.map((item, index) => {
             const Icon = item.icon;
             return (

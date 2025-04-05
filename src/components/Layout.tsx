@@ -11,8 +11,6 @@ import {
   Book,
   LogOut,
   User,
-  Sun,
-  Moon,
   Coffee,
   Clock,
   BarChart,
@@ -33,7 +31,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, signOut } = useAuthStore();
-  const { isDark, toggleTheme } = useThemeStore();
+  const { isDark } = useThemeStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const getNavigationItems = () => {
@@ -154,27 +152,6 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   );
 
-  const ThemeToggle = () => (
-    <div className="p-4 border-t theme-transition border-gray-200 dark:border-gray-700">
-      <button
-        onClick={toggleTheme}
-        className="w-full flex items-center justify-center px-4 py-2 rounded-lg bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:shadow-md transition-all duration-300"
-      >
-        {isDark ? (
-          <>
-            <Sun className="h-4 w-4 mr-2" />
-            Light Mode
-          </>
-        ) : (
-          <>
-            <Moon className="h-4 w-4 mr-2" />
-            Dark Mode
-          </>
-        )}
-      </button>
-    </div>
-  );
-
   return (
     <div className={`min-h-screen theme-transition ${isDark ? 'dark bg-gray-900' : 'bg-gray-100'}`}>
       {/* Header with logo and menu button for mobile */}
@@ -237,7 +214,6 @@ export default function Layout({ children }: LayoutProps) {
                     <NavigationContent />
                   </div>
                   <UserSection />
-                  <ThemeToggle />
                 </div>
               </motion.div>
             </>
@@ -251,7 +227,6 @@ export default function Layout({ children }: LayoutProps) {
               <NavigationContent />
             </div>
             <UserSection />
-            <ThemeToggle />
           </div>
         </div>
 
