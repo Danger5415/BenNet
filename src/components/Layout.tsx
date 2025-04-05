@@ -20,7 +20,9 @@ import {
   Users,
   Library,
   FileText,
-  BookOpen
+  BookOpen,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,7 +33,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, signOut } = useAuthStore();
-  const { isDark } = useThemeStore();
+  const { isDark, toggleTheme } = useThemeStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const getNavigationItems = () => {
@@ -121,6 +123,51 @@ export default function Layout({ children }: LayoutProps) {
           );
         })}
       </nav>
+
+      {/* Theme Toggle */}
+      <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={toggleTheme}
+          className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200"
+        >
+          <span className="text-sm font-medium">
+            {isDark ? 'Light Mode' : 'Dark Mode'}
+          </span>
+          <motion.div
+            initial={false}
+            animate={{ rotate: isDark ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+            className="relative w-6 h-6"
+          >
+            <motion.div
+              initial={false}
+              animate={{
+                opacity: isDark ? 0 : 1,
+                scale: isDark ? 0 : 1,
+                y: isDark ? 10 : 0
+              }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <Sun className="h-5 w-5 text-yellow-500" />
+            </motion.div>
+            <motion.div
+              initial={false}
+              animate={{
+                opacity: isDark ? 1 : 0,
+                scale: isDark ? 1 : 0,
+                y: isDark ? 0 : -10
+              }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <Moon className="h-5 w-5 text-blue-400" />
+            </motion.div>
+          </motion.div>
+        </motion.button>
+      </div>
     </>
   );
 
@@ -157,26 +204,28 @@ export default function Layout({ children }: LayoutProps) {
       {/* Header with logo and menu button for mobile */}
       <div className="fixed top-0 left-0 right-0 z-50 md:hidden">
         <div className={`flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 shadow-md`}>
-          <div className="flex items-center">
-            <motion.button
-              onClick={toggleMobileMenu}
-              className={`p-2 rounded-lg mr-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={isMobileMenuOpen ? 'close' : 'menu'}
-                  initial={{ opacity: 0, rotate: -180 }}
-                  animate={{ opacity: 1, rotate: 0 }}
-                  exit={{ opacity: 0, rotate: 180 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                </motion.div>
-              </AnimatePresence>
-            </motion.button>
+          <motion.button
+            onClick={toggleMobileMenu}
+            className={`p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isMobileMenuOpen ? 'close' : 'menu'}
+                initial={{ opacity: 0, rotate: -180 }}
+                animate={{ opacity: 1, rotate: 0 }}
+                exit={{ opacity: 0, rotate: 180 }}
+                transition={{ duration: 0.2 }}
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </motion.div>
+            </AnimatePresence>
+          </motion.button>
+
+          {/* Centered Logo and Title */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
             <img 
               src="/logo.svg" 
               alt="BenNet Logo" 
@@ -186,6 +235,9 @@ export default function Layout({ children }: LayoutProps) {
               BenNet
             </span>
           </div>
+
+          {/* Empty div to maintain flex spacing */}
+          <div className="w-10"></div>
         </div>
       </div>
 
@@ -206,7 +258,7 @@ export default function Layout({ children }: LayoutProps) {
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="fixed inset-y-0 left-0 w-64 z-40 md:hidden bg-white dark:bg-gray-800 shadow-xl mt-12"
               >
                 <div className="flex flex-col h-full">
