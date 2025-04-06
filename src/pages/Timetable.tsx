@@ -18,7 +18,11 @@ import {
   Settings, 
   X, 
   Check,
-  QrCode 
+  QrCode,
+  Edit2,
+  Plus,
+  Save,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import QRCode from 'qrcode';
@@ -34,7 +38,6 @@ interface Class {
   room: string;
   teacher: string;
   teacher_email: string;
-  qrCode?: string;
 }
 
 interface TutorRequest {
@@ -69,7 +72,7 @@ const initialClasses: Class[] = [
     end_time: '14:30',
     room: '012-N-CA',
     teacher: 'Sounak Sadukhan',
-    teacher_email: 'sounak.sadukhan@university.edu'
+    teacher_email: 'sounak.sadukhan@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174002',
@@ -79,7 +82,7 @@ const initialClasses: Class[] = [
     end_time: '09:30',
     room: '011 N CC',
     teacher: 'Thipendra pal Singh',
-    teacher_email: 'thipendra.singh@university.edu'
+    teacher_email: 'thipendra.singh@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174003',
@@ -89,7 +92,7 @@ const initialClasses: Class[] = [
     end_time: '12:35',
     room: 'P LA 001',
     teacher: 'Lalitesh Chaudhary',
-    teacher_email: 'lalitesh.chaudhary@university.edu'
+    teacher_email: 'lalitesh.chaudhary@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174004',
@@ -99,7 +102,7 @@ const initialClasses: Class[] = [
     end_time: '15:25',
     room: 'P LA 203',
     teacher: 'Priyanka Chandani',
-    teacher_email: 'priyanka.chandani@university.edu'
+    teacher_email: 'priyanka.chandani@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174005',
@@ -109,7 +112,7 @@ const initialClasses: Class[] = [
     end_time: '15:35',
     room: 'P CC 210',
     teacher: 'Purushottam Kumar',
-    teacher_email: 'purushottam.kumar@university.edu'
+    teacher_email: 'purushottam.kumar@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174006',
@@ -119,7 +122,7 @@ const initialClasses: Class[] = [
     end_time: '15:25',
     room: '214 N LA',
     teacher: 'Madhushi Verma',
-    teacher_email: 'madhushi.verma@university.edu'
+    teacher_email: 'madhushi.verma@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174007',
@@ -129,7 +132,7 @@ const initialClasses: Class[] = [
     end_time: '12:35',
     room: 'P LA 206',
     teacher: 'Achyut Shankar Sinha',
-    teacher_email: 'achyut.sinha@university.edu'
+    teacher_email: 'achyut.sinha@bennett.edu.in'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174008',
@@ -139,7 +142,7 @@ const initialClasses: Class[] = [
     end_time: '15:25',
     room: 'P CC 210',
     teacher: 'Priyanka Chandani',
-    teacher_email: 'priyanka.chandani@university.edu'
+    teacher_email: 'priyanka.chandani@bennett.edu.in'
   }
 ];
 
@@ -170,11 +173,15 @@ export default function Timetable() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+  // New state for admin editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedClass, setEditedClass] = useState<Class | null>(null);
+  const [showAddClassForm, setShowAddClassForm] = useState(false);
   const [newClass, setNewClass] = useState<Omit<Class, 'id'>>({
     subject: '',
     day: 'Monday',
-    start_time: '09:00',
-    end_time: '10:00',
+    start_time: '',
+    end_time: '',
     room: '',
     teacher: '',
     teacher_email: ''
@@ -447,10 +454,109 @@ export default function Timetable() {
     });
   };
 
+  // Admin functions for editing timetable
+  const handleEditClass = (classItem: Class) => {
+    setEditedClass(classItem);
+    setIsEditing(true);
+  };
+
+  const handleSaveClass = async () => {
+    if (!editedClass) return;
+
+    try {
+      const { error } = await supabase
+        .from('class_schedules')
+        .update({
+          subject: editedClass.subject,
+          day: editedClass.day,
+          start_time: editedClass.start_time,
+          end_time: editedClass.end_time,
+          room: editedClass.room,
+          teacher: editedClass.teacher,
+          teacher_email: editedClass.teacher_email
+        })
+        .eq('id', editedClass.id);
+
+      if (error) throw error;
+
+      setClasses(classes.map(c => c.id === editedClass.id ? editedClass : c));
+      setIsEditing(false);
+      setEditedClass(null);
+      alert('Class updated successfully!');
+    } catch (error) {
+      console.error('Error updating class:', error);
+      alert('Failed to update class. Please try again.');
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    if (!confirm('Are you sure you want to delete this class?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('class_schedules')
+        .delete()
+        .eq('id', classId);
+
+      if (error) throw error;
+
+      setClasses(classes.filter(c => c.id !== classId));
+      alert('Class deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting class:', error);
+      alert('Failed to delete class. Please try again.');
+    }
+  };
+
+  const handleAddClass = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('class_schedules')
+        .insert([{
+          subject: newClass.subject,
+          day: newClass.day,
+          start_time: newClass.start_time,
+          end_time: newClass.end_time,
+          room: newClass.room,
+          teacher: newClass.teacher,
+          teacher_email: newClass.teacher_email
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setClasses([...classes, data as Class]);
+      setShowAddClassForm(false);
+      setNewClass({
+        subject: '',
+        day: 'Monday',
+        start_time: '',
+        end_time: '',
+        room: '',
+        teacher: '',
+        teacher_email: ''
+      });
+      alert('Class added successfully!');
+    } catch (error) {
+      console.error('Error adding class:', error);
+      alert('Failed to add class. Please try again.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold dark:text-white">Timetable</h1>
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => setShowAddClassForm(true)}
+            className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Class
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-x-auto">
@@ -499,7 +605,24 @@ export default function Timetable() {
                             {classForSlot.start_time} - {classForSlot.end_time}
                           </div>
                           <div className="flex items-center mt-2 space-x-2">
-                            {(user?.role === 'admin' || user?.role === 'teacher') ? (
+                            {user?.role === 'admin' ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditClass(classForSlot)}
+                                  className="flex items-center text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-800"
+                                >
+                                  <Edit2 className="h-4 w-4 mr-1" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClass(classForSlot.id)}
+                                  className="flex items-center text-sm text-red-600 dark:text-red-400 hover:text-red-800"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </button>
+                              </>
+                            ) : (user?.role === 'admin' || user?.role === 'teacher') ? (
                               <>
                                 <button
                                   onClick={() => handleGenerateQR(classForSlot)}
@@ -540,7 +663,263 @@ export default function Timetable() {
         </table>
       </div>
 
-      {/* QR Code Modal */}
+      {/* Edit Class Modal */}
+      {isEditing && editedClass && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Edit Class
+              </h3>
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditedClass(null);
+                }}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={editedClass.subject}
+                  onChange={(e) => setEditedClass({ ...editedClass, subject: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Day
+                </label>
+                <select
+                  value={editedClass.day}
+                  onChange={(e) => setEditedClass({ ...editedClass, day: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  {days.map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Start Time
+                  </label>
+                  <input
+                    type="text"
+                    value={editedClass.start_time}
+                    onChange={(e) => setEditedClass({ ...editedClass, start_time: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="HH:MM"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    End Time
+                  </label>
+                  <input
+                    type="text"
+                    value={editedClass.end_time}
+                    onChange={(e) => setEditedClass({ ...editedClass, end_time: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="HH:MM"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Room
+                </label>
+                <input
+                  type="text"
+                  value={editedClass.room}
+                  onChange={(e) => setEditedClass({ ...editedClass, room: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Teacher
+                </label>
+                <input
+                  type="text"
+                  value={editedClass.teacher}
+                  onChange={(e) => setEditedClass({ ...editedClass, teacher: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Teacher Email
+                </label>
+                <input
+                  type="email"
+                  value={editedClass.teacher_email}
+                  onChange={(e) => setEditedClass({ ...editedClass, teacher_email: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditedClass(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClass}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Class Modal */}
+      {showAddClassForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Add New Class
+              </h3>
+              <button
+                onClick={() => setShowAddClassForm(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={newClass.subject}
+                  onChange={(e) => setNewClass({ ...newClass, subject: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Day
+                </label>
+                <select
+                  value={newClass.day}
+                  onChange={(e) => setNewClass({ ...newClass, day: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                >
+                  {days.map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Start Time
+                  </label>
+                  <input
+                    type="text"
+                    value={newClass.start_time}
+                    onChange={(e) => setNewClass({ ...newClass, start_time: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="HH:MM"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    End Time
+                  </label>
+                  <input
+                    type="text"
+                    value={newClass.end_time}
+                    onChange={(e) => setNewClass({ ...newClass, end_time: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="HH:MM"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Room
+                </label>
+                <input
+                  type="text"
+                  value={newClass.room}
+                  onChange={(e) => setNewClass({ ...newClass, room: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Teacher
+                </label>
+                <input
+                  type="text"
+                  value={newClass.teacher}
+                  onChange={(e) => setNewClass({ ...newClass, teacher: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Teacher Email
+                </label>
+                <input
+                  type="email"
+                  value={newClass.teacher_email}
+                  onChange={(e) => setNewClass({ ...newClass, teacher_email: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddClassForm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddClass}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                >
+                  Add Class
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Existing modals (QR Code, Scanner, Attendance) remain unchanged */}
       {showQR && selectedClass && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
@@ -586,7 +965,6 @@ export default function Timetable() {
         </div>
       )}
 
-      {/* QR Scanner Modal */}
       {showScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
@@ -641,7 +1019,6 @@ export default function Timetable() {
         </div>
       )}
 
-      {/* Attendance View Modal */}
       {showAttendance && selectedClass && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full">
