@@ -22,7 +22,8 @@ import {
   FileText,
   BookOpen,
   Sun,
-  Moon
+  Moon,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -87,17 +88,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const NavigationContent = () => (
     <>
-      <div className="flex items-center flex-shrink-0 px-4 mb-5">
-        <img 
-          src="/logo.svg" 
-          alt="BenNet Logo" 
-          className="h-8 w-8 transform transition-transform duration-200 hover:scale-110"
-        />
-        <span className="ml-2 text-xl font-semibold theme-transition text-gray-900 dark:text-white">
-          BenNet
-        </span>
-      </div>
-      <nav className="flex-1 px-2 space-y-1">
+      <nav className="flex-1 px-2 space-y-1 mt-6">
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.href;
@@ -284,6 +275,20 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Main content */}
         <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Desktop Header with Logo */}
+          <div className="hidden md:flex items-center justify-center h-16 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center">
+              <img 
+                src="/logo.svg" 
+                alt="BenNet Logo" 
+                className="h-8 w-8 transform transition-transform duration-200 hover:scale-110"
+              />
+              <span className="ml-2 text-xl font-semibold text-gray-900 dark:text-white">
+                BenNet
+              </span>
+            </div>
+          </div>
+
           <main className="flex-1 relative overflow-y-auto focus:outline-none">
             <div className="py-6">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
