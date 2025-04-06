@@ -72,6 +72,7 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
   fetchAttendance: async (classId: string, date = new Date().toISOString().split('T')[0]) => {
     try {
       set({ loading: true, error: null });
+
       const { data, error } = await supabase
         .from('attendance_records')
         .select(`
@@ -96,18 +97,7 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
     try {
       set({ loading: true, error: null });
 
-      // First, verify that the class exists
-      const { data: classData, error: classError } = await supabase
-        .from('class_schedules')
-        .select('id')
-        .eq('id', classId)
-        .single();
-
-      if (classError || !classData) {
-        throw new Error('Invalid class ID or class does not exist');
-      }
-
-      // Get first available teacher ID
+      // Get teacher ID
       const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
         .select('id')
@@ -116,14 +106,17 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
       if (teacherError) throw teacherError;
 
       const teacherId = teacherData?.[0]?.id;
+      if (!teacherId) {
+        throw new Error('No teacher found to mark attendance');
+      }
 
       const attendanceData = {
         student_id: studentId,
         class_id: classId,
         date: new Date().toISOString().split('T')[0],
         status,
-        marked_via: markedVia,
         marked_by: teacherId,
+        marked_via: markedVia,
         qr_code: qrCode,
         qr_expiry: qrCode ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null
       };
@@ -150,29 +143,7 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
   generateQRCode: async (classId: string) => {
     try {
       set({ loading: true, error: null });
-
-      // Verify that the class exists before generating QR code
-      const { data: classData, error: classError } = await supabase
-        .from('class_schedules')
-        .select('id')
-        .eq('id', classId)
-        .single();
-
-      if (classError || !classData) {
-        throw new Error('Invalid class ID or class does not exist');
-      }
-
       const qrCode = `${classId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      
-      const { error } = await supabase
-        .from('attendance_records')
-        .update({
-          qr_code: qrCode,
-          qr_expiry: new Date(Date.now() + 5 * 60 * 1000).toISOString()
-        })
-        .eq('class_id', classId);
-
-      if (error) throw error;
       return qrCode;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate QR code';

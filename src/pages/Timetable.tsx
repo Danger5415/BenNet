@@ -1,11 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { QrCode, Clock, Calendar, CheckCircle, Plus, X, Edit2, Trash2, Users, Check, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react';
+import { useStudentStore } from '../store/studentStore';
+import { useTimetableStore } from '../store/timetableStore';
+import { 
+  Camera, 
+  CameraOff, 
+  Mic, 
+  MicOff, 
+  PhoneOff, 
+  Video, 
+  VideoOff, 
+  Users, 
+  MessageSquare, 
+  ZoomIn, 
+  ZoomOut, 
+  Settings, 
+  X, 
+  Check,
+  QrCode 
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useTimetableStore } from '../store/timetableStore';
 
 interface Class {
   id: string;
@@ -109,7 +127,7 @@ export default function Timetable() {
   const { 
     students, 
     attendanceRecords, 
-    loading, 
+    loading,
     error,
     fetchStudents,
     fetchAttendance,
@@ -262,13 +280,32 @@ export default function Timetable() {
         throw new Error('Student not found');
       }
 
-      await markAttendance({
-        studentId: studentData.id,
-        classId: selectedClass.id,
-        status: 'present',
-        markedVia: 'qr',
-        qrCode: data
-      });
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('email', selectedClass.teacher)
+        .single();
+
+      if (teacherError || !teacherData) {
+        throw new Error('Teacher not found');
+      }
+
+      const { error: attendanceError } = await supabase
+        .from('attendance_records')
+        .upsert({
+          student_id: studentData.id,
+          class_id: selectedClass.id,
+          date: new Date().toISOString().split('T')[0],
+          status: 'present',
+          marked_by: teacherData.id,
+          marked_via: 'qr',
+          qr_code: data,
+          qr_expiry: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+        }, {
+          onConflict: 'student_id,class_id,date'
+        });
+
+      if (attendanceError) throw attendanceError;
 
       alert('Attendance marked successfully!');
       setShowScanner(false);
@@ -286,17 +323,32 @@ export default function Timetable() {
     }
 
     try {
-      if (!selectedClass.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-        throw new Error('Invalid class ID format');
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('email', selectedClass.teacher)
+        .single();
+
+      if (teacherError || !teacherData) {
+        throw new Error('Teacher not found');
       }
 
-      await markAttendance({
-        studentId,
-        classId: selectedClass.id,
-        status: present ? 'present' : 'absent',
-        markedVia: 'manual'
-      });
+      const { error: attendanceError } = await supabase
+        .from('attendance_records')
+        .upsert({
+          student_id: studentId,
+          class_id: selectedClass.id,
+          date: new Date().toISOString().split('T')[0],
+          status: present ? 'present' : 'absent',
+          marked_by: teacherData.id,
+          marked_via: 'manual'
+        }, {
+          onConflict: 'student_id,class_id,date'
+        });
 
+      if (attendanceError) throw attendanceError;
+
+      await fetchAttendance(selectedClass.id);
       alert(`Attendance ${present ? 'marked' : 'unmarked'} successfully!`);
     } catch (error) {
       console.error('Error marking attendance:', error);
