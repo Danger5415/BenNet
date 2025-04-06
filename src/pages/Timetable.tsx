@@ -33,7 +33,20 @@ interface Class {
   end_time: string;
   room: string;
   teacher: string;
+  teacher_email: string;
   qrCode?: string;
+}
+
+interface TutorRequest {
+  id: number;
+  subject: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  maxStudents: number;
+  status: 'pending' | 'rejected' | 'approved';
+  studentName: string;
+  studentEmail: string;
 }
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -55,7 +68,8 @@ const initialClasses: Class[] = [
     start_time: '13:35',
     end_time: '14:30',
     room: '012-N-CA',
-    teacher: 'Sounak Sadukhan'
+    teacher: 'Sounak Sadukhan',
+    teacher_email: 'sounak.sadukhan@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174002',
@@ -64,7 +78,8 @@ const initialClasses: Class[] = [
     start_time: '08:30',
     end_time: '09:30',
     room: '011 N CC',
-    teacher: 'Thipendra pal Singh'
+    teacher: 'Thipendra pal Singh',
+    teacher_email: 'thipendra.singh@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174003',
@@ -73,7 +88,8 @@ const initialClasses: Class[] = [
     start_time: '10:40',
     end_time: '12:35',
     room: 'P LA 001',
-    teacher: 'Lalitesh Chaudhary'
+    teacher: 'Lalitesh Chaudhary',
+    teacher_email: 'lalitesh.chaudhary@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174004',
@@ -82,7 +98,8 @@ const initialClasses: Class[] = [
     start_time: '13:35',
     end_time: '15:25',
     room: 'P LA 203',
-    teacher: 'Priyanka Chandani'
+    teacher: 'Priyanka Chandani',
+    teacher_email: 'priyanka.chandani@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174005',
@@ -91,7 +108,8 @@ const initialClasses: Class[] = [
     start_time: '14:30',
     end_time: '15:35',
     room: 'P CC 210',
-    teacher: 'Purushottam Kumar'
+    teacher: 'Purushottam Kumar',
+    teacher_email: 'purushottam.kumar@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174006',
@@ -100,7 +118,8 @@ const initialClasses: Class[] = [
     start_time: '13:35',
     end_time: '15:25',
     room: '214 N LA',
-    teacher: 'Madhushi Verma'
+    teacher: 'Madhushi Verma',
+    teacher_email: 'madhushi.verma@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174007',
@@ -109,7 +128,8 @@ const initialClasses: Class[] = [
     start_time: '10:40',
     end_time: '12:35',
     room: 'P LA 206',
-    teacher: 'Achyut Shankar Sinha'
+    teacher: 'Achyut Shankar Sinha',
+    teacher_email: 'achyut.sinha@university.edu'
   },
   {
     id: '123e4567-e89b-12d3-a456-426614174008',
@@ -118,7 +138,8 @@ const initialClasses: Class[] = [
     start_time: '14:30',
     end_time: '15:25',
     room: 'P CC 210',
-    teacher: 'Priyanka Chandani'
+    teacher: 'Priyanka Chandani',
+    teacher_email: 'priyanka.chandani@university.edu'
   }
 ];
 
@@ -155,7 +176,8 @@ export default function Timetable() {
     start_time: '09:00',
     end_time: '10:00',
     room: '',
-    teacher: ''
+    teacher: '',
+    teacher_email: ''
   });
 
   useEffect(() => {
@@ -166,23 +188,22 @@ export default function Timetable() {
     if (showQR && selectedClass?.qrCode) {
       generateQRCodeUrl(selectedClass.qrCode);
       setQrTimer(30);
-      timerRef.current = setInterval(() => {
-        setQrTimer(prev => {
+      
+      const interval = setInterval(() => {
+        setQrTimer((prev) => {
           if (prev <= 1) {
-            clearInterval(timerRef.current!);
+            clearInterval(interval);
             setShowQR(false);
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    }
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
+      return () => {
+        clearInterval(interval);
+      };
+    }
   }, [showQR, selectedClass]);
 
   useEffect(() => {
@@ -241,9 +262,13 @@ export default function Timetable() {
       if (!classItem.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
         throw new Error('Invalid UUID format for class ID');
       }
-      const qrCode = await generateQRCodeStore(classItem.id);
+      const qrCode = `${classItem.id}-${Date.now()}`;
       await generateQRCodeUrl(qrCode);
       setShowQR(true);
+      
+      // Update the class with the new QR code
+      const updatedClass = { ...classItem, qrCode };
+      setSelectedClass(updatedClass);
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please ensure the class ID is in the correct format.');
@@ -283,7 +308,7 @@ export default function Timetable() {
       const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
         .select('id')
-        .eq('email', selectedClass.teacher)
+        .eq('email', selectedClass.teacher_email)
         .single();
 
       if (teacherError || !teacherData) {
@@ -326,11 +351,11 @@ export default function Timetable() {
       const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
         .select('id')
-        .eq('email', selectedClass.teacher)
+        .eq('email', selectedClass.teacher_email)
         .single();
 
       if (teacherError || !teacherData) {
-        throw new Error('Teacher not found');
+        throw new Error('Teacher not found. Please check the class configuration.');
       }
 
       const { error: attendanceError } = await supabase
