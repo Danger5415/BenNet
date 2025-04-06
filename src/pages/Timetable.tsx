@@ -18,15 +18,91 @@ interface Class {
   qrCode?: string;
 }
 
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const timeSlots = [
-  '09:00-10:00',
-  '10:00-11:00',
-  '11:00-12:00',
-  '12:00-13:00',
-  '14:00-15:00',
-  '15:00-16:00',
-  '16:00-17:00'
+  '08:30-09:30',
+  '09:30-10:30',
+  '10:40-11:35',
+  '11:35-12:35',
+  '13:35-14:30',
+  '14:30-15:25',
+  '15:25-16:20'
+];
+
+// Your specific class schedule
+const initialClasses: Class[] = [
+  {
+    id: '1',
+    subject: 'Design and Analysis of Algorithm',
+    day: 'Monday',
+    start_time: '13:35',
+    end_time: '14:30',
+    room: '012-N-CA',
+    teacher: 'Sounak Sadukhan'
+  },
+  {
+    id: '2',
+    subject: 'Computer Networks',
+    day: 'Tuesday',
+    start_time: '08:30',
+    end_time: '09:30',
+    room: '011 N CC',
+    teacher: 'Thipendra pal Singh'
+  },
+  {
+    id: '3',
+    subject: 'Computer Networks',
+    day: 'Tuesday',
+    start_time: '10:40',
+    end_time: '12:35',
+    room: 'P LA 001',
+    teacher: 'Lalitesh Chaudhary'
+  },
+  {
+    id: '4',
+    subject: 'Operating System',
+    day: 'Tuesday',
+    start_time: '13:35',
+    end_time: '15:25',
+    room: 'P LA 203',
+    teacher: 'Priyanka Chandani'
+  },
+  {
+    id: '5',
+    subject: 'Design and Analysis of Algorithm',
+    day: 'Wednesday',
+    start_time: '14:30',
+    end_time: '15:35',
+    room: 'P CC 210',
+    teacher: 'Purushottam Kumar'
+  },
+  {
+    id: '6',
+    subject: 'Design Thinking and Innovation',
+    day: 'Thursday',
+    start_time: '13:35',
+    end_time: '15:25',
+    room: '214 N LA',
+    teacher: 'Madhushi Verma'
+  },
+  {
+    id: '7',
+    subject: 'System and Network Security',
+    day: 'Friday',
+    start_time: '10:40',
+    end_time: '12:35',
+    room: 'P LA 206',
+    teacher: 'Achyut Shankar Sinha'
+  },
+  {
+    id: '8',
+    subject: 'Operating Systems',
+    day: 'Friday',
+    start_time: '14:30',
+    end_time: '15:25',
+    room: 'P CC 210',
+    teacher: 'Priyanka Chandani'
+  }
 ];
 
 export default function Timetable() {
@@ -42,7 +118,7 @@ export default function Timetable() {
     generateQRCode: generateQRCodeStore
   } = useTimetableStore();
 
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [classes, setClasses] = useState<Class[]>(initialClasses);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -66,23 +142,8 @@ export default function Timetable() {
   });
 
   useEffect(() => {
-    fetchClasses();
     fetchStudents();
   }, []);
-
-  const fetchClasses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('class_schedules')
-        .select('*')
-        .order('start_time');
-
-      if (error) throw error;
-      setClasses(data || []);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-    }
-  };
 
   useEffect(() => {
     if (showQR && selectedClass?.qrCode) {
@@ -283,154 +344,22 @@ export default function Timetable() {
     }
   };
 
-  const handleAddClass = () => {
-    setEditingClass(null);
-    setNewClass({
-      subject: '',
-      day: 'Monday',
-      start_time: '09:00',
-      end_time: '10:00',
-      room: '',
-      teacher: ''
+  const getClassForTimeSlot = (day: string, timeSlot: string) => {
+    const [slotStart, slotEnd] = timeSlot.split('-');
+    return classes.find(cls => {
+      const classStart = cls.start_time;
+      const classEnd = cls.end_time;
+      return cls.day === day && 
+             ((classStart >= slotStart && classStart < slotEnd) ||
+              (classEnd > slotStart && classEnd <= slotEnd) ||
+              (classStart <= slotStart && classEnd >= slotEnd));
     });
-    setFormError(null);
-    setShowClassForm(true);
-  };
-
-  const handleEditClass = (classItem: Class) => {
-    setEditingClass(classItem);
-    setNewClass({
-      subject: classItem.subject,
-      day: classItem.day,
-      start_time: classItem.start_time,
-      end_time: classItem.end_time,
-      room: classItem.room,
-      teacher: classItem.teacher
-    });
-    setFormError(null);
-    setShowClassForm(true);
-  };
-
-  const handleDeleteClass = async (classId: string) => {
-    if (confirm('Are you sure you want to delete this class?')) {
-      try {
-        const { error } = await supabase
-          .from('class_schedules')
-          .delete()
-          .eq('id', classId);
-
-        if (error) throw error;
-
-        setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
-      } catch (error) {
-        console.error('Error deleting class:', error);
-        alert('Failed to delete class. Please try again.');
-      }
-    }
-  };
-
-  const validateClassForm = () => {
-    if (!newClass.subject.trim()) {
-      setFormError('Subject is required');
-      return false;
-    }
-    if (!newClass.room.trim()) {
-      setFormError('Room is required');
-      return false;
-    }
-    if (!newClass.teacher.trim()) {
-      setFormError('Teacher is required');
-      return false;
-    }
-    if (new Date(`2000-01-01T${newClass.end_time}`) <= new Date(`2000-01-01T${newClass.start_time}`)) {
-      setFormError('End time must be after start time');
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmitClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    if (!validateClassForm()) {
-      return;
-    }
-
-    try {
-      if (editingClass) {
-        const { error } = await supabase
-          .from('class_schedules')
-          .update({
-            subject: newClass.subject,
-            day: newClass.day,
-            start_time: newClass.start_time,
-            end_time: newClass.end_time,
-            room: newClass.room,
-            teacher: newClass.teacher
-          })
-          .eq('id', editingClass.id);
-
-        if (error) throw error;
-
-        setClasses(prevClasses =>
-          prevClasses.map(cls =>
-            cls.id === editingClass.id
-              ? { ...newClass, id: editingClass.id }
-              : cls
-          )
-        );
-      } else {
-        const { data, error } = await supabase
-          .from('class_schedules')
-          .insert({
-            subject: newClass.subject,
-            day: newClass.day,
-            start_time: newClass.start_time,
-            end_time: newClass.end_time,
-            room: newClass.room,
-            teacher: newClass.teacher
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        setClasses(prev => [...prev, data as Class]);
-      }
-      setShowClassForm(false);
-    } catch (error) {
-      console.error('Error saving class:', error);
-      setFormError('Failed to save class. Please try again.');
-    }
-  };
-
-  const getAttendanceStats = (classId: string) => {
-    const todayRecords = attendanceRecords.filter(
-      record => 
-        record.classId === classId &&
-        record.date === new Date().toISOString().split('T')[0]
-    );
-
-    return {
-      present: todayRecords.filter(record => record.status === 'present').length,
-      total: students.length,
-    };
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold dark:text-white">Timetable</h1>
-        {user?.role === 'admin' && (
-          <button
-            onClick={handleAddClass}
-            className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Class
-          </button>
-        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-x-auto">
@@ -457,11 +386,7 @@ export default function Timetable() {
                   {timeSlot}
                 </td>
                 {days.map(day => {
-                  const classForSlot = classes.find(
-                    cls =>
-                      cls.day === day &&
-                      `${cls.start_time}-${cls.end_time}` === timeSlot
-                  );
+                  const classForSlot = getClassForTimeSlot(day, timeSlot);
 
                   return (
                     <td
@@ -478,6 +403,9 @@ export default function Timetable() {
                           </div>
                           <div className="text-sm text-blue-500 dark:text-blue-300">
                             {classForSlot.teacher}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            {classForSlot.start_time} - {classForSlot.end_time}
                           </div>
                           <div className="flex items-center mt-2 space-x-2">
                             {(user?.role === 'admin' || user?.role === 'teacher') ? (
@@ -496,20 +424,6 @@ export default function Timetable() {
                                   <Users className="h-4 w-4 mr-1" />
                                   View Attendance
                                 </button>
-                                <button
-                                  onClick={() => handleEditClass(classForSlot)}
-                                  className="flex items-center text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-800"
-                                >
-                                  <Edit2 className="h-4 w-4 mr-1" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteClass(classForSlot.id)}
-                                  className="flex items-center text-sm text-red-600 dark:text-red-400 hover:text-red-800"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" />
-                                  Delete
-                                </button>
                               </>
                             ) : (
                               <button
@@ -524,14 +438,6 @@ export default function Timetable() {
                               </button>
                             )}
                           </div>
-                          {(user?.role === 'admin' || user?.role === 'teacher') && (
-                            <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                              {(() => {
-                                const stats = getAttendanceStats(classForSlot.id);
-                                return `${stats.present}/${stats.total} present`;
-                              })()}
-                            </div>
-                          )}
                         </div>
                       )}
                     </td>
@@ -737,134 +643,6 @@ export default function Timetable() {
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Class Form Modal */}
-      {showClassForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                {editingClass ? 'Edit Class' : 'Add New Class'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowClassForm(false);
-                  setFormError(null);
-                }}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {formError && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center">
-                <AlertCircle className="h-5 w-5 mr-2" />
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitClass} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  value={newClass.subject}
-                  onChange={(e) => setNewClass({ ...newClass, subject: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Day
-                  </label>
-                  <select
-                    value={newClass.day}
-                    onChange={(e) => setNewClass({ ...newClass, day: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    {days.map(day => (
-                      <option key={day} value={day}>{day}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Room
-                  </label>
-                  <input
-                    type="text"
-                    value={newClass.room}
-                    onChange={(e) => setNewClass({ ...newClass, room: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={newClass.start_time}
-                    onChange={(e) => setNewClass({ ...newClass, start_time: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={newClass.end_time}
-                    onChange={(e) => setNewClass({ ...newClass, end_time: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Teacher
-                </label>
-                <input
-                  type="text"
-                  value={newClass.teacher}
-                  onChange={(e) => setNewClass({ ...newClass, teacher: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowClassForm(false);
-                    setFormError(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                >
-                  {editingClass ? 'Update' : 'Add'} Class
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
