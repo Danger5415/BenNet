@@ -128,7 +128,7 @@ export default function Layout({ children }: LayoutProps) {
           </span>
           <motion.div
             initial={false}
-            animate={{ rotate: isDark ? 180 : 0 }}
+            animate={{ rotate: isDark ? 0 : 0 }}
             transition={{ duration: 0.3 }}
             className="relative w-6 h-6"
           >

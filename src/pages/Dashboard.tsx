@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Book,
   Calendar,
@@ -11,13 +9,10 @@ import {
   Search,
   Coffee,
   Clock,
-  Sun,
-  Moon,
   Cloud,
   CloudRain,
   CloudSnow,
   CloudLightning,
-  Thermometer,
   Wind,
   Droplets,
   ArrowRight,
@@ -25,9 +20,9 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  MapPin,
-  Loader
+  MapPin
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface WeatherData {
   temp: number;
@@ -58,7 +53,6 @@ interface QuickAccessCard {
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const { isDark, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,8 +125,8 @@ export default function Dashboard() {
 
   const getWeatherIcon = (iconCode: string) => {
     const iconMap: { [key: string]: typeof Cloud } = {
-      '01d': Sun,
-      '01n': Moon,
+      '01d': Cloud,
+      '01n': Cloud,
       '02d': Cloud,
       '02n': Cloud,
       '03d': Cloud,
@@ -247,8 +241,8 @@ export default function Dashboard() {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Header with Theme Toggle and Notifications */}
-      <div className="fixed top-4 right-4 flex items-center space-x-4 z-50">
+      {/* Header with Notifications */}
+      <div className="fixed top-4 right-4 z-50">
         {/* Notifications Button */}
         <div className="relative">
           <motion.button
@@ -307,40 +301,6 @@ export default function Dashboard() {
             )}
           </AnimatePresence>
         </div>
-
-        {/* Theme Toggle */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={toggleTheme}
-          className="relative p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg overflow-hidden"
-        >
-          <motion.div
-            initial={false}
-            animate={{
-              scale: isDark ? 0 : 1,
-              opacity: isDark ? 0 : 1,
-              y: isDark ? 20 : 0
-            }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <Sun className="h-6 w-6 text-yellow-500" />
-          </motion.div>
-          <motion.div
-            initial={false}
-            animate={{
-              scale: isDark ? 1 : 0,
-              opacity: isDark ? 1 : 0,
-              y: isDark ? 0 : -20
-            }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <Moon className="h-6 w-6 text-blue-500" />
-          </motion.div>
-          <div className="w-6 h-6" /> {/* Spacer */}
-        </motion.button>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
@@ -368,7 +328,7 @@ export default function Dashboard() {
           >
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <Loader className="h-8 w-8 text-primary-500 animate-spin" />
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-full text-red-500">
