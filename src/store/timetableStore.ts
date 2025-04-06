@@ -96,11 +96,26 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
     try {
       set({ loading: true, error: null });
 
-      // Get teacher ID if available
-      const { data: teacherData } = await supabase
+      // First, verify that the class exists
+      const { data: classData, error: classError } = await supabase
+        .from('class_schedules')
+        .select('id')
+        .eq('id', classId)
+        .single();
+
+      if (classError || !classData) {
+        throw new Error('Invalid class ID or class does not exist');
+      }
+
+      // Get first available teacher ID
+      const { data: teacherData, error: teacherError } = await supabase
         .from('teachers')
         .select('id')
-        .single();
+        .limit(1);
+
+      if (teacherError) throw teacherError;
+
+      const teacherId = teacherData?.[0]?.id;
 
       const attendanceData = {
         student_id: studentId,
@@ -108,7 +123,7 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
         date: new Date().toISOString().split('T')[0],
         status,
         marked_via: markedVia,
-        marked_by: teacherData?.id,
+        marked_by: teacherId,
         qr_code: qrCode,
         qr_expiry: qrCode ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null
       };
@@ -135,6 +150,18 @@ export const useTimetableStore = create<TimetableState>((set, get) => ({
   generateQRCode: async (classId: string) => {
     try {
       set({ loading: true, error: null });
+
+      // Verify that the class exists before generating QR code
+      const { data: classData, error: classError } = await supabase
+        .from('class_schedules')
+        .select('id')
+        .eq('id', classId)
+        .single();
+
+      if (classError || !classData) {
+        throw new Error('Invalid class ID or class does not exist');
+      }
+
       const qrCode = `${classId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       
       const { error } = await supabase

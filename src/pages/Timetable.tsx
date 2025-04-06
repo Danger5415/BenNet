@@ -29,10 +29,9 @@ const timeSlots = [
   '15:25-16:20'
 ];
 
-// Your specific class schedule
 const initialClasses: Class[] = [
   {
-    id: '1',
+    id: '123e4567-e89b-12d3-a456-426614174001',
     subject: 'Design and Analysis of Algorithm',
     day: 'Monday',
     start_time: '13:35',
@@ -41,7 +40,7 @@ const initialClasses: Class[] = [
     teacher: 'Sounak Sadukhan'
   },
   {
-    id: '2',
+    id: '123e4567-e89b-12d3-a456-426614174002',
     subject: 'Computer Networks',
     day: 'Tuesday',
     start_time: '08:30',
@@ -50,7 +49,7 @@ const initialClasses: Class[] = [
     teacher: 'Thipendra pal Singh'
   },
   {
-    id: '3',
+    id: '123e4567-e89b-12d3-a456-426614174003',
     subject: 'Computer Networks',
     day: 'Tuesday',
     start_time: '10:40',
@@ -59,7 +58,7 @@ const initialClasses: Class[] = [
     teacher: 'Lalitesh Chaudhary'
   },
   {
-    id: '4',
+    id: '123e4567-e89b-12d3-a456-426614174004',
     subject: 'Operating System',
     day: 'Tuesday',
     start_time: '13:35',
@@ -68,7 +67,7 @@ const initialClasses: Class[] = [
     teacher: 'Priyanka Chandani'
   },
   {
-    id: '5',
+    id: '123e4567-e89b-12d3-a456-426614174005',
     subject: 'Design and Analysis of Algorithm',
     day: 'Wednesday',
     start_time: '14:30',
@@ -77,7 +76,7 @@ const initialClasses: Class[] = [
     teacher: 'Purushottam Kumar'
   },
   {
-    id: '6',
+    id: '123e4567-e89b-12d3-a456-426614174006',
     subject: 'Design Thinking and Innovation',
     day: 'Thursday',
     start_time: '13:35',
@@ -86,7 +85,7 @@ const initialClasses: Class[] = [
     teacher: 'Madhushi Verma'
   },
   {
-    id: '7',
+    id: '123e4567-e89b-12d3-a456-426614174007',
     subject: 'System and Network Security',
     day: 'Friday',
     start_time: '10:40',
@@ -95,7 +94,7 @@ const initialClasses: Class[] = [
     teacher: 'Achyut Shankar Sinha'
   },
   {
-    id: '8',
+    id: '123e4567-e89b-12d3-a456-426614174008',
     subject: 'Operating Systems',
     day: 'Friday',
     start_time: '14:30',
@@ -221,11 +220,15 @@ export default function Timetable() {
   const handleGenerateQR = async (classItem: Class) => {
     try {
       setSelectedClass(classItem);
+      if (!classItem.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        throw new Error('Invalid UUID format for class ID');
+      }
       const qrCode = await generateQRCodeStore(classItem.id);
       await generateQRCodeUrl(qrCode);
       setShowQR(true);
     } catch (error) {
       console.error('Error generating QR code:', error);
+      alert('Failed to generate QR code. Please ensure the class ID is in the correct format.');
     }
   };
 
@@ -233,12 +236,10 @@ export default function Timetable() {
     if (!data || !selectedClass || !user) return;
 
     try {
-      // Parse QR code data
       const [classId, timestamp] = data.split('-');
       const scanTime = new Date().getTime();
       const qrTimestamp = parseInt(timestamp);
 
-      // QR code is valid for 30 seconds
       if (scanTime - qrTimestamp > 30000) {
         alert('QR code has expired. Please ask the teacher to generate a new one.');
         setShowScanner(false);
@@ -251,7 +252,6 @@ export default function Timetable() {
         return;
       }
 
-      // Get student ID
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
@@ -262,7 +262,6 @@ export default function Timetable() {
         throw new Error('Student not found');
       }
 
-      // Mark attendance
       await markAttendance({
         studentId: studentData.id,
         classId: selectedClass.id,
@@ -281,9 +280,16 @@ export default function Timetable() {
   };
 
   const handleManualAttendance = async (studentId: string, present: boolean) => {
-    if (!selectedClass || !user) return;
+    if (!selectedClass || !user) {
+      alert('No class selected');
+      return;
+    }
 
     try {
+      if (!selectedClass.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        throw new Error('Invalid class ID format');
+      }
+
       await markAttendance({
         studentId,
         classId: selectedClass.id,
@@ -294,14 +300,22 @@ export default function Timetable() {
       alert(`Attendance ${present ? 'marked' : 'unmarked'} successfully!`);
     } catch (error) {
       console.error('Error marking attendance:', error);
-      alert('Failed to mark attendance. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to mark attendance. Please try again.');
     }
   };
 
   const handleViewAttendance = async (classItem: Class) => {
-    setSelectedClass(classItem);
-    await fetchAttendance(classItem.id);
-    setShowAttendance(true);
+    try {
+      setSelectedClass(classItem);
+      if (!classItem.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        throw new Error('Invalid UUID format for class ID');
+      }
+      await fetchAttendance(classItem.id);
+      setShowAttendance(true);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      alert('Failed to fetch attendance. Please ensure the class ID is in the correct format.');
+    }
   };
 
   const handleZoomIn = () => {
