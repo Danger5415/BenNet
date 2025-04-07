@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, CheckCircle, XCircle, AlertTriangle, BarChart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -22,6 +23,160 @@ interface AttendanceStats {
   }[];
 }
 
+// Demo attendance data for different students
+const demoAttendanceData: { [key: string]: AttendanceStats } = {
+  'student@campus.edu': {
+    totalClasses: 45,
+    attendedClasses: 38,
+    percentage: 84.44,
+    status: 'good',
+    subjectWise: {
+      'Design and Analysis of Algorithm': {
+        total: 12,
+        attended: 11,
+        percentage: 91.67
+      },
+      'Computer Networks': {
+        total: 15,
+        attended: 12,
+        percentage: 80
+      },
+      'Operating System': {
+        total: 10,
+        attended: 8,
+        percentage: 80
+      },
+      'Design Thinking and Innovation': {
+        total: 8,
+        attended: 7,
+        percentage: 87.5
+      }
+    },
+    recentAttendance: [
+      {
+        date: '2024-04-06',
+        subject: 'Operating System',
+        status: 'present'
+      },
+      {
+        date: '2024-04-05',
+        subject: 'Computer Networks',
+        status: 'present'
+      },
+      {
+        date: '2024-04-04',
+        subject: 'Design Thinking and Innovation',
+        status: 'absent'
+      },
+      {
+        date: '2024-04-03',
+        subject: 'Design and Analysis of Algorithm',
+        status: 'present'
+      }
+    ]
+  },
+  'e23cseu1927@bennett.edu.in': {
+    totalClasses: 45,
+    attendedClasses: 32,
+    percentage: 71.11,
+    status: 'warning',
+    subjectWise: {
+      'Design and Analysis of Algorithm': {
+        total: 12,
+        attended: 9,
+        percentage: 75
+      },
+      'Computer Networks': {
+        total: 15,
+        attended: 10,
+        percentage: 66.67
+      },
+      'Operating System': {
+        total: 10,
+        attended: 7,
+        percentage: 70
+      },
+      'Design Thinking and Innovation': {
+        total: 8,
+        attended: 6,
+        percentage: 75
+      }
+    },
+    recentAttendance: [
+      {
+        date: '2024-04-06',
+        subject: 'Operating System',
+        status: 'absent'
+      },
+      {
+        date: '2024-04-05',
+        subject: 'Computer Networks',
+        status: 'present'
+      },
+      {
+        date: '2024-04-04',
+        subject: 'Design Thinking and Innovation',
+        status: 'present'
+      },
+      {
+        date: '2024-04-03',
+        subject: 'Design and Analysis of Algorithm',
+        status: 'present'
+      }
+    ]
+  },
+  'e23cseu1935@bennett.edu.in': {
+    totalClasses: 45,
+    attendedClasses: 25,
+    percentage: 55.56,
+    status: 'danger',
+    subjectWise: {
+      'Design and Analysis of Algorithm': {
+        total: 12,
+        attended: 7,
+        percentage: 58.33
+      },
+      'Computer Networks': {
+        total: 15,
+        attended: 8,
+        percentage: 53.33
+      },
+      'Operating System': {
+        total: 10,
+        attended: 5,
+        percentage: 50
+      },
+      'Design Thinking and Innovation': {
+        total: 8,
+        attended: 5,
+        percentage: 62.5
+      }
+    },
+    recentAttendance: [
+      {
+        date: '2024-04-06',
+        subject: 'Operating System',
+        status: 'absent'
+      },
+      {
+        date: '2024-04-05',
+        subject: 'Computer Networks',
+        status: 'absent'
+      },
+      {
+        date: '2024-04-04',
+        subject: 'Design Thinking and Innovation',
+        status: 'present'
+      },
+      {
+        date: '2024-04-03',
+        subject: 'Design and Analysis of Algorithm',
+        status: 'present'
+      }
+    ]
+  }
+};
+
 export default function Attendance() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<AttendanceStats>({
@@ -42,108 +197,9 @@ export default function Attendance() {
   useEffect(() => {
     if (!user) return;
 
-    const fetchAttendanceData = async () => {
-      try {
-        // Get student ID
-        const { data: studentData } = await supabase
-          .from('students')
-          .select('id')
-          .eq('email', user.email)
-          .single();
-
-        if (!studentData) return;
-
-        // Get overall attendance
-        const { data: overallData } = await supabase
-          .rpc('get_student_attendance', { p_student_id: studentData.id });
-
-        // Get subject-wise attendance
-        const { data: attendanceData } = await supabase
-          .from('class_attendance')
-          .select(`
-            status,
-            class_schedules:class_id (
-              subject
-            )
-          `)
-          .eq('student_id', studentData.id);
-
-        // Process subject-wise attendance
-        const subjectWise: { [key: string]: { total: number; attended: number; percentage: number } } = {};
-        attendanceData?.forEach((record: any) => {
-          const subject = record.class_schedules.subject;
-          if (!subjectWise[subject]) {
-            subjectWise[subject] = { total: 0, attended: 0, percentage: 0 };
-          }
-          subjectWise[subject].total++;
-          if (record.status === 'present') {
-            subjectWise[subject].attended++;
-          }
-        });
-
-        // Calculate percentages
-        Object.keys(subjectWise).forEach(subject => {
-          const { total, attended } = subjectWise[subject];
-          subjectWise[subject].percentage = total > 0 ? (attended / total) * 100 : 0;
-        });
-
-        // Get recent attendance
-        const { data: recentData } = await supabase
-          .from('class_attendance')
-          .select(`
-            date,
-            status,
-            class_schedules:class_id (
-              subject
-            )
-          `)
-          .eq('student_id', studentData.id)
-          .order('date', { ascending: false })
-          .limit(5);
-
-        const recentAttendance = recentData?.map((record: any) => ({
-          date: record.date,
-          subject: record.class_schedules.subject,
-          status: record.status
-        })) || [];
-
-        // Update stats
-        const newStats: AttendanceStats = {
-          totalClasses: overallData?.[0]?.total_classes || 0,
-          attendedClasses: overallData?.[0]?.attended_classes || 0,
-          percentage: overallData?.[0]?.percentage || 0,
-          status: getAttendanceStatus(overallData?.[0]?.percentage || 0),
-          subjectWise,
-          recentAttendance
-        };
-
-        setStats(newStats);
-      } catch (error) {
-        console.error('Error fetching attendance:', error);
-      }
-    };
-
-    fetchAttendanceData();
-
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('attendance-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'class_attendance'
-        },
-        () => {
-          fetchAttendanceData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    // Get demo data based on user email or fallback to default student
+    const userStats = demoAttendanceData[user.email] || demoAttendanceData['student@campus.edu'];
+    setStats(userStats);
   }, [user]);
 
   useEffect(() => {
@@ -152,12 +208,6 @@ export default function Attendance() {
     }, 100);
     return () => clearTimeout(timer);
   }, [stats.percentage]);
-
-  const getAttendanceStatus = (percentage: number): 'good' | 'warning' | 'danger' => {
-    if (percentage >= 75) return 'good';
-    if (percentage >= 65) return 'warning';
-    return 'danger';
-  };
 
   const getStatusColor = (percentage: number) => {
     if (percentage >= 75) return 'text-green-500 dark:text-green-400';
