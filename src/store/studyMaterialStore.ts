@@ -70,7 +70,7 @@ export const useStudyMaterialStore = create<StudyMaterialState>((set, get) => ({
       if (error) throw error;
       set({ materials: data || [] });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch study materials';
+      const errorMessage = error instanceof Error ? error.message : '';
       set({ error: errorMessage });
       throw error;
     } finally {

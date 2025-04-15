@@ -76,7 +76,7 @@ export const useAssignmentStore = create<AssignmentState>((set, get) => ({
       if (error) throw error;
       set({ assignments: data || [] });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch assignments';
+      const errorMessage = error instanceof Error ? error.message : '';
       set({ error: errorMessage });
       throw error;
     } finally {
