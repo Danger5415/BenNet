@@ -22,7 +22,7 @@ const locations: Location[] = [
 ];
 
 const STREET_VIEW_LOCATION = { lat: 28.4500862, lng: 77.5846569 };
-const GOOGLE_MAPS_API_KEY = 'AIzaSyAcjBM7lfQtwKJ2BuKnGa--CokjK_IlZj4';
+const GOOGLE_MAPS_API_KEY = '';
 
 export default function CampusMap() {
   const [showStreetView, setShowStreetView] = useState(false);
